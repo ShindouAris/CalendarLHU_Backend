@@ -1,7 +1,7 @@
 import { t } from "elysia"
 import { fetch } from "bun"
 
-const api_url = "https://tapi.lhu.edu.vn/calen/auth/XemLich_LichSinhVien"
+const api_url: string = process.env.API_URL || ""
 
 const build_request = (studentID: string) => {
     return {
