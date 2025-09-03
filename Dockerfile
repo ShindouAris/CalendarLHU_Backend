@@ -33,9 +33,9 @@ RUN bun install --frozen-lockfile --production
 COPY --from=build /app/src ./src
 COPY --from=build /app/tsconfig.json ./
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S bun -u 1001
+# Create non-root user for security (bun user already exists in base image)
+RUN addgroup -g 1001 -S nodejs || true
+RUN id -u bun >/dev/null 2>&1 || adduser -S bun -u 1001
 
 # Change ownership of the app directory
 RUN chown -R bun:nodejs /app
