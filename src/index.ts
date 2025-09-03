@@ -6,7 +6,7 @@ import { cors } from "@elysiajs/cors";
 
 const app = new Elysia()
         .use(cors({
-          origin: "*",
+          origin: "https://calendarlhu.chisadin.site",
           methods: ["GET", "POST"]
         })).listen(3000);
 

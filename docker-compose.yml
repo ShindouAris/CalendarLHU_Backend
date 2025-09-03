@@ -20,6 +20,8 @@ services:
       start_period: 40s
     networks:
       - app-network
+    env_file:
+      - .env
 
   app-dev:
     build:
