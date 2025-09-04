@@ -3,12 +3,14 @@ import { calendarLHU } from "./controller/calendarlhu";
 import { weatherapi } from "./controller/weather";
 import { cors } from "@elysiajs/cors";
 
+const port = process.env.PORT || 3000
+
 
 const app = new Elysia()
         .use(cors({
           origin: "https://calendarlhu.chisadin.site",
           methods: ["GET", "POST"]
-        })).listen(3000);
+        })).listen(port);
 
 app.get("/schedule/:studentID", ({ params }) => {
   const { studentID } = params;
