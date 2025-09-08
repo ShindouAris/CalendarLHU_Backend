@@ -1,4 +1,3 @@
-import {t} from 'elysia'
 import { fetch } from 'bun'
 import {  WeatherCurrentAPIResponse, WeatherForeCastAPIResponse } from '../types/weather'
 

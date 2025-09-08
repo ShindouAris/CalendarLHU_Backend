@@ -1,4 +1,3 @@
-import { t } from "elysia"
 import { fetch } from "bun"
 
 const api_url: string = process.env.API_URL || ""
