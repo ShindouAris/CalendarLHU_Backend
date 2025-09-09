@@ -12,10 +12,10 @@ const port = process.env.PORT || 3000
 
 const app = new Elysia()
         .use(cors({
-          origin: "https://calendarlhu.chisadin.site",
+          origin: ["https://calendarlhu.chisadin.site", "http://localhost:5173"],
           methods: ["GET", "POST"]
         }))
-        .use(rateLimit({duration: 120000}))
+        .use(rateLimit({duration: 60000, max: 100}))
         .use(logger({
           mode: "live",
           withBanner: true,

@@ -11,7 +11,7 @@ interface MonHoc {
 }
 
 // Mỗi học kỳ sẽ là 1 key trong object
-interface HocKyGroup {
+interface HocKyGroup {  
     semesters: {
         [hocKy: string]: MonHoc[];
     };
@@ -67,7 +67,7 @@ async function getGradesGrouped(accessToken: string, sync_token: string | undefi
         
 
         $('#tblBangDiem tbody').slice(1).each((_:any, tbody:any) => {
-            const semesterName = $(tbody).find('tr').first().find('td.RowGroup').text().trim();
+            const semesterName = $(tbody).find('tr').first().find('td.RowGroup').text().trim().replace("Học kỳ ", "");
 
             const courses: MonHoc[] = [];
 
