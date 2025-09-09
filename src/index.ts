@@ -9,7 +9,7 @@ const port = process.env.PORT || 3000
 
 const app = new Elysia()
         .use(cors({
-          origin: "http://localhost:5173",
+          origin: "https://calendarlhu.chisadin.site",
           methods: ["GET", "POST"]
         })).listen(port);
 
