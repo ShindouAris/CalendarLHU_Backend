@@ -1,7 +1,6 @@
 import {load} from 'cheerio';
 import { fetch } from 'bun';
 import fs from "fs/promises"
-import { status } from 'elysia';
 
 interface MonHoc {
     ma_mon_hoc: string;
