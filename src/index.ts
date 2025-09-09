@@ -1,6 +1,7 @@
-import { Elysia } from "elysia";
+import { Elysia, status, t } from "elysia";
 import { calendarLHU } from "./controller/calendarlhu";
 import { weatherapi } from "./controller/weather";
+import { userApi } from "./controller/user";
 import { cors } from "@elysiajs/cors";
 
 const port = process.env.PORT || 3000
@@ -8,7 +9,7 @@ const port = process.env.PORT || 3000
 
 const app = new Elysia()
         .use(cors({
-          origin: "https://calendarlhu.chisadin.site",
+          origin: "http://localhost:5173",
           methods: ["GET", "POST"]
         })).listen(port);
 
@@ -60,6 +61,46 @@ app.get('/weather/forecast_all', async () => {
   return { error: "Failed to fetch weather forecast" };
 })
 
+app.post("/login", async ({body}) => {
+    const credentials = await userApi.login(body.UserID, body.Password, body.DeviceInfo)
+    if (!credentials) {
+      return status("Not Found")
+    }
+    return credentials // Jsons
+  }, 
+  {
+  body: t.Object({
+    UserID: t.String(),
+    Password: t.String(),
+    DeviceInfo: t.String()
+  })
+}
+)
+
+app.post("/userinfo", async ({body}) => {
+  const userdata = await userApi.userinfo(body.accessToken) 
+  if (!userdata) {
+    return status("Not Found")
+  }
+  return userdata
+},  
+{
+  body: t.Object({
+    accessToken: t.String()
+  })
+}
+)
+
+app.post("/logout", async ({body}) => {
+  await userApi.logout(body.accessToken)
+  return status("OK")
+},
+{
+  body: t.Object({  
+    accessToken: t.String()
+  })
+}
+)
 
 app.get("/", () => "Hello Elysia")
 
