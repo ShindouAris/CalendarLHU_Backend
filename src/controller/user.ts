@@ -6,24 +6,6 @@ const apiLogin = process.env.AUTH  || ""
 const apiLogOut = process.env.UNAUTH || ""
 const userinfo = process.env.USERINFO || ""
 
-function parseSetCookie(setCookieHeader: string | null) {
-    if (!setCookieHeader) return {};
-  
-    // Tách từng cookie (để ý dấu phẩy phân biệt cookie)
-    const cookies = setCookieHeader.split(/,(?=\s*\w+=)/);
-    const cookieMap: Record<string, string> = {};
-  
-    for (const cookie of cookies) {
-      const [pair] = cookie.split(";"); // lấy phần key=value
-      const [key, value] = pair.split("=");
-      if (key && value) {
-        cookieMap[key.trim()] = value.trim();
-      }
-    }
-  
-    return cookieMap;
-  }
-
 export const userApi = {
     login: async (idSinhVien: string, password: string, idLoginDevice: string) => {
         try {

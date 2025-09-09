@@ -3,6 +3,9 @@ import { calendarLHU } from "./controller/calendarlhu";
 import { weatherapi } from "./controller/weather";
 import { userApi } from "./controller/user";
 import { cors } from "@elysiajs/cors";
+import { rateLimit } from "elysia-rate-limit";
+import { logger } from "@tqman/nice-logger"
+import { MarkStudent } from "./controller/mark";
 
 const port = process.env.PORT || 3000
 
@@ -11,7 +14,14 @@ const app = new Elysia()
         .use(cors({
           origin: "https://calendarlhu.chisadin.site",
           methods: ["GET", "POST"]
-        })).listen(port);
+        }))
+        .use(rateLimit({duration: 120000}))
+        .use(logger({
+          mode: "live",
+          withBanner: true,
+          withTimestamp: true
+        }))
+        .listen(port);
 
 app.get("/schedule/:studentID", ({ params }) => {
   const { studentID } = params;
@@ -101,6 +111,22 @@ app.post("/logout", async ({body}) => {
   })
 }
 )
+
+app.post("/mark", async ({body}) => {
+  const mark_data = MarkStudent.getMark(body.accessToken, body.sync_token)
+
+  if (!mark_data) {
+    return status("Not Found")
+  }
+
+  return mark_data
+
+}, {
+  body: t.Object({
+    accessToken: t.String(),
+    sync_token: t.Optional(t.String())
+  })
+})
 
 app.get("/", () => "Hello Elysia")
 
