@@ -1,6 +1,5 @@
 import {load} from 'cheerio';
 import { fetch } from 'bun';
-import fs from "fs/promises"
 
 interface MonHoc {
     ma_mon_hoc: string;
@@ -56,8 +55,6 @@ async function getGradesGrouped(accessToken: string, sync_token: string | undefi
         if (!html) {
             throw new Error("No html found")
         } 
-
-        fs.writeFile("index.html", html)
 
         const $ = load(html);
         const groupedGrades: HocKyGroup = {
