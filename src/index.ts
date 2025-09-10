@@ -1,4 +1,4 @@
-import { Elysia, status, t } from "elysia";
+import { Elysia, ElysiaCustomStatusResponse, status, t } from "elysia";
 import { calendarLHU } from "./controller/calendarlhu";
 import { weatherapi } from "./controller/weather";
 import { userApi } from "./controller/user";
@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000
 
 const app = new Elysia()
         .use(cors({
-          origin: ["https://calendarlhu.chisadin.site", "http://localhost:5173"],
+          origin: ["https://calendarlhu.chisadin.site", "http://localhost:5173", "https://lhu-dashboard.chisadin.site"],
           methods: ["GET", "POST"]
         }))
         .use(rateLimit({duration: 60000, max: 100}))
@@ -71,12 +71,15 @@ app.get('/weather/forecast_all', async () => {
   return { error: "Failed to fetch weather forecast" };
 })
 
-app.post("/login", async ({body}) => {
+app.post("/login", async ({body, cookie: {awt}}) => {
     const credentials = await userApi.login(body.UserID, body.Password, body.DeviceInfo)
     if (!credentials) {
       return status("Not Found")
     }
-    return credentials // Jsons
+    if (!(credentials instanceof ElysiaCustomStatusResponse)) {{
+      awt.value = credentials.accessToken
+    }}
+    return credentials
   }, 
   {
   body: t.Object({

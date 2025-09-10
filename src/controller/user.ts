@@ -1,13 +1,17 @@
 import { fetch } from "bun"
 import { UserInfoResponse } from "../types/user";
-import { status } from "elysia";
+import { ElysiaCustomStatusResponse, status } from "elysia";
 
 const apiLogin = process.env.AUTH  || ""
 const apiLogOut = process.env.UNAUTH || ""
 const userinfo = process.env.USERINFO || ""
 
+export interface loginRes {
+    accessToken: string
+}
+
 export const userApi = {
-    login: async (idSinhVien: string, password: string, idLoginDevice: string) => {
+    login: async (idSinhVien: string, password: string, idLoginDevice: string): Promise<loginRes | any> => {
         try {
             if (!idLoginDevice.startsWith('{')) {
                 throw new Error("Invalid idLoginDevice")
