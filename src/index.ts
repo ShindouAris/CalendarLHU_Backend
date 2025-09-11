@@ -51,8 +51,6 @@ app.get("/weather/forecast", async ({ query }) => {
   }
 
   const forecast = await weatherapi.forecast();
-  console.log(JSON.stringify(forecast?.forecast));
-  console.log(timestamp);
   if (forecast) {
     for (const day of forecast.forecast.forecastday) {
       const hourMatch = day.hour.find(hour => hour.time_epoch === Number(roundHourEpoch(timestamp)));

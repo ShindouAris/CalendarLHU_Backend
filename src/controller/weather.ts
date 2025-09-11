@@ -9,7 +9,7 @@ const api_url = (apikey: string, lat: number, long: number, fetch_current: boole
         return `http://api.weatherapi.com/v1/current.json?key=${apikey}&q=${lat},${long}&lang=vi&aqi=yes`
     }
 
-    return `http://api.weatherapi.com/v1/forecast.json?key=${apikey}&q=${lat},${long}&lang=vi&aqi=yes&days=6`
+    return `http://api.weatherapi.com/v1/forecast.json?key=${apikey}&q=${lat},${long}&lang=vi&aqi=yes&days=14`
 }
 
 const campus_long_lat = {lat: 10.954859, long: 106.796100}
