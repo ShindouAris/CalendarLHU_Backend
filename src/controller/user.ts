@@ -67,6 +67,12 @@ export const userApi = {
                 }
             )
             if (!response.ok) {
+                const res = await response.json() 
+                if ("Message" in res) {
+                    if (res.Message === "Chứng thực của bạn không còn hiệu lực") {
+                        return status("Unauthorized", "Your token is invalid")
+                    }
+                }
                 throw new Error(`Failed to get userdata`)
             }
             const userRes: UserInfoResponse = await response.json()
