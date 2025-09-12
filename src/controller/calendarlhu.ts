@@ -1,8 +1,10 @@
 import { fetch } from "bun"
+import { status } from "elysia"
 
 const api_url: string = process.env.API_URL || ""
+const private_schedule_api = process.env.PRIVATE_SCHEDULE_API || ""
 
-const build_request = (studentID: string) => {
+const build_request = (studentID: number) => {
     return {
         Ngay: new Date().toISOString(),
         PageIndex: 1,
@@ -12,7 +14,7 @@ const build_request = (studentID: string) => {
 }
 
 export const calendarLHU = {
-    getStudentSchedule: async (studentID: string) => {
+    getStudentSchedule: async (studentID: number) => {
         const response = await fetch(api_url, {
         method: 'POST',
         headers: {
@@ -45,5 +47,34 @@ export const calendarLHU = {
     }
 
     return await response.json();
+  },
+  get_private_schedule: async (studentID: number) => {
+    try {
+      const res = await fetch(private_schedule_api, {
+        method: "POST", 
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ID: studentID
+        })
+      })
+
+      if (!res.ok) {
+        throw new Error(`Error trying to get user schedule: ${res.status} - ${await res.text()}`)
+      }
+
+      const data = await res.json()
+
+      if (!data) {
+        return status("Internal Server Error")
+      }
+      return data
+
+    } catch (error) {
+      if (error instanceof Error) {
+        console.log(error.message)
+      }
+    }
   }
 }
