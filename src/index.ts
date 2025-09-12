@@ -23,10 +23,21 @@ const app = new Elysia()
         }))
         .listen(port);
 
-app.get("/schedule/:studentID", ({ params }) => {
-  const { studentID } = params;
-  return calendarLHU.getStudentSchedule(studentID);
+app.post("/schedule", async ({ body }) => {
+  return await calendarLHU.getStudentSchedule(body.studentID);
+}, {
+  body: t.Object({
+    studentID: t.Number()
+  })
 });
+
+app.post("/private-exam", async ({body}) => {
+  return await calendarLHU.get_private_schedule(body.ID)
+}, {
+  body: t.Object({
+    ID: t.Number()
+  })
+})
 
 app.get("/weather/current", async () => {
   const weather = await weatherapi.current();
@@ -39,7 +50,7 @@ app.get("/weather/current", async () => {
 app.get("/weather/forecast", async ({ query }) => {
   let { timestamp } = query;
 
-  if (!timestamp) { // nếu không có timestamp, tính timestamp hiện tại
+  if (!timestamp) { // nếu không có timestamp,  tính timestamp hiện tại
     timestamp = (Math.floor(new Date().getTime() / 1000)).toString();
   }
 
