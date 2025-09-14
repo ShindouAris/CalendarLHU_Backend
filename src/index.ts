@@ -2,9 +2,7 @@ import { Elysia, ElysiaCustomStatusResponse, status, t } from "elysia";
 import { calendarLHU } from "./controller/calendarlhu";
 import { weatherapi } from "./controller/weather";
 import { userApi } from "./controller/user";
-import { cors } from "@elysiajs/cors";
-import { rateLimit } from "elysia-rate-limit";
-import { logger } from "@tqman/nice-logger"
+import { cors } from "@elysiajs/cors";import { logger } from "@tqman/nice-logger"
 import { MarkStudent } from "./controller/mark";
 
 const port = process.env.PORT || 3000
@@ -15,7 +13,6 @@ const app = new Elysia()
           origin: ["https://calendarlhu.chisadin.site", "http://localhost:5173", "https://lhu-dashboard.chisadin.site"],
           methods: ["GET", "POST"]
         }))
-        .use(rateLimit({duration: 60000, max: 100}))
         .use(logger({
           mode: "live",
           withBanner: true,
