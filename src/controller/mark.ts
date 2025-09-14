@@ -14,33 +14,15 @@ interface HocKyGroup {
     semesters: {
         [hocKy: string]: MonHoc[];
     };
-    sync_token: string | null;
+    tin_chi_tich_luy: number
 }
 
 const api_mark = process.env.API_MARK || ""
 
-function parseSetCookie(setCookieHeader: string | null) {
-    if (!setCookieHeader) return {};
-  
-    // Tách từng cookie (để ý dấu phẩy phân biệt cookie)
-    const cookies = setCookieHeader.split(/,(?=\s*\w+=)/);
-    const cookieMap: Record<string, string> = {};
-  
-    for (const cookie of cookies) {
-      const [pair] = cookie.split(";"); // lấy phần key=value
-      const [key, value] = pair.split("=");
-      if (key && value) {
-        cookieMap[key.trim()] = value.trim();
-      }
-    }
-  
-    return cookieMap;
-  }
-
-async function getGradesGrouped(accessToken: string, sync_token: string | undefined): Promise<HocKyGroup | null> {
+async function getGradesGrouped(accessToken: string): Promise<HocKyGroup | null> {
     try {
 
-        const cookies = `awt=${accessToken}${sync_token ?? `;ASP.NET_SessionId=${sync_token}`}`
+        const cookies = `awt=${accessToken}`
 
         const data  = await fetch(api_mark, {
             method: "GET",
@@ -59,9 +41,10 @@ async function getGradesGrouped(accessToken: string, sync_token: string | undefi
         const $ = load(html);
         const groupedGrades: HocKyGroup = {
             semesters: {},
-            sync_token: null
+            tin_chi_tich_luy: 0,
         };
         
+        let so_tin_chi_tich_luy: number = 0
 
         $('#tblBangDiem tbody').slice(1).each((_:any, tbody:any) => {
             const semesterName = $(tbody).find('tr').first().find('td.RowGroup').text().trim().replace("Học kỳ ", "");
@@ -74,21 +57,18 @@ async function getGradesGrouped(accessToken: string, sync_token: string | undefi
                     courses.push({
                         ma_mon_hoc: $(cells[0]).text().trim(),  
                         ten_mon_hoc: $(cells[1]).text().trim(),
-                        he_so: $(cells[2]).text().trim(),
+                        he_so: $(cells[2]).text().trim(), // -> tín chỉ / học kì
                         diem_thanh_phan: $(cells[3]).text().trim() || "Chưa có",
                         diem_trung_binh: $(cells[4]).text().trim() || "Chưa có",
                     });
+                    so_tin_chi_tich_luy += Number($(cells[2]).text().trim()) || 0
                 }
             });
 
             groupedGrades.semesters[semesterName] = courses;
         });
 
-        const set_cookies = parseSetCookie(data.headers.get("set-cookie"))
-
-        if (set_cookies) {
-            groupedGrades["sync_token"] = set_cookies["ASP.NET_SessionId"]
-        }
+        groupedGrades.tin_chi_tich_luy = so_tin_chi_tich_luy
 
         return groupedGrades;
 
@@ -99,7 +79,7 @@ async function getGradesGrouped(accessToken: string, sync_token: string | undefi
 }
 
 export const MarkStudent = {
-    getMark: async (accessToken: string, sync_token: string | undefined) => {
-        return await getGradesGrouped(accessToken, sync_token)
+    getMark: async (accessToken: string) => {
+        return await getGradesGrouped(accessToken)
     }
 }

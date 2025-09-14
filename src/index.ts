@@ -122,7 +122,7 @@ app.post("/logout", async ({body}) => {
 )
 
 app.post("/mark", async ({body}) => {
-  const mark_data = MarkStudent.getMark(body.accessToken, body.sync_token)
+  const mark_data = MarkStudent.getMark(body.accessToken)
 
   if (!mark_data) {
     return status("Not Found")
@@ -132,8 +132,7 @@ app.post("/mark", async ({body}) => {
 
 }, {
   body: t.Object({
-    accessToken: t.String(),
-    sync_token: t.Optional(t.String())
+    accessToken: t.String()
   })
 })
 
