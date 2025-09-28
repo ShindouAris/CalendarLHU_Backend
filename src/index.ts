@@ -10,7 +10,10 @@ const port = process.env.PORT || 3000
 
 const app = new Elysia()
         .use(cors({
-          origin: ["https://calendarlhu.chisadin.site", "http://localhost:5173", "https://lhu-dashboard.chisadin.site"],
+          origin: ["https://calendarlhu.chisadin.site", 
+            "http://localhost:5173",
+            "https://lhu-dashboard.chisadin.site", 
+            "https://lhu-dashboard.vercel.app"],
           methods: ["GET", "POST"]
         }))
         .use(logger({
