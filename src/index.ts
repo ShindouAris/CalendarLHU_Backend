@@ -4,6 +4,7 @@ import { weatherapi } from "./controller/weather";
 import { userApi } from "./controller/user";
 import { cors } from "@elysiajs/cors";import { logger } from "@tqman/nice-logger"
 import { MarkStudent } from "./controller/mark";
+import { LMSAPI } from "./controller/lms";
 
 const port = process.env.PORT || 3000
 
@@ -133,6 +134,15 @@ app.post("/mark", async ({body}) => {
 
   return mark_data
 
+}, {
+  body: t.Object({
+    accessToken: t.String()
+  })
+})
+
+app.post("/lms/diemdanh", async ({body}) => {
+  const diemdanh_data = await LMSAPI.getDsDiemdanh(body.accessToken)
+  return diemdanh_data
 }, {
   body: t.Object({
     accessToken: t.String()

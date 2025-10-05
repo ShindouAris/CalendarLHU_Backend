@@ -1,6 +1,6 @@
 import {load} from 'cheerio';
 import { fetch } from 'bun';
-
+// import fs from 'fs';  // debug
 interface MonHoc {
     ma_mon_hoc: string;
     ten_mon_hoc: string;
@@ -15,6 +15,7 @@ interface HocKyGroup {
         [hocKy: string]: MonHoc[];
     };
     tin_chi_tich_luy: number
+    reason?: string;
 }
 
 const api_mark = process.env.API_MARK || ""
@@ -38,6 +39,8 @@ async function getGradesGrouped(accessToken: string): Promise<HocKyGroup | null>
             throw new Error("No html found")
         } 
 
+        // fs.writeFileSync("mark.html", html) // debug lines
+
         const $ = load(html);
         const groupedGrades: HocKyGroup = {
             semesters: {},
@@ -46,6 +49,15 @@ async function getGradesGrouped(accessToken: string): Promise<HocKyGroup | null>
         
         let so_tin_chi_tich_luy: number = 0
 
+        // TODO:Phát hiện div Không cho xem điểm
+        const blocked = $('#KhongChoXemDiem')
+        if (blocked.length > 0) {
+            const masinhvien = $('#LbMaSV').text().trim()
+            console.warn(`Cảnh báo: User ${masinhvien} không xem điểm được`)
+            groupedGrades.reason = blocked.text().trim()
+        }
+
+        // Lấy điểm từ bảng
         $('#tblBangDiem tbody').slice(1).each((_:any, tbody:any) => {
             const semesterName = $(tbody).find('tr').first().find('td.RowGroup').text().trim().replace("Học kỳ ", "");
 
