@@ -5,6 +5,7 @@ import { userApi } from "./controller/user";
 import { cors } from "@elysiajs/cors";import { logger } from "@tqman/nice-logger"
 import { MarkStudent } from "./controller/mark";
 import { LMSAPI } from "./controller/lms";
+import { CHATAPI } from "./controller/chat";
 
 const port = process.env.PORT || 3000
 
@@ -151,6 +152,24 @@ app.post("/lms/diemdanh", async ({body}) => {
   })
 })
 
+app.post("/lms/checkin", async ({body}) => {
+  return await LMSAPI.checkin(body.qr_data, body.accessToken)
+}, {
+  body: t.Object({
+    accessToken: t.String(),
+    qr_data: t.String()
+  })
+})
+
+app.post("/chat/create", async ({body}) => {
+  const chat_session = await CHATAPI.createChatSession(body.accessToken)
+  return chat_session
+}, {
+  body: t.Object({
+    accessToken: t.String()
+  })  
+})
+  
 app.get("/", () => "Hello Elysia")
 
 console.log(
