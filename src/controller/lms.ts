@@ -59,6 +59,8 @@ export const LMSAPI = {
                 console.error(`Error ${res.status}: ${res.statusText}`)
                 return status("Internal Server Error")
             }
+
+            console.log(res.statusText)
             return status("OK")
 
         } catch (error) {
