@@ -144,16 +144,16 @@ app.post("/mark", async ({body}) => {
 })
 
 app.post("/lms/diemdanh", async ({body}) => {
-  const diemdanh_data = await LMSAPI.getDsDiemdanh(body.accessToken)
-  return diemdanh_data
+  return  await LMSAPI.getDsDiemdanh(body.accessToken)
 }, {
   body: t.Object({
     accessToken: t.String()
   })
 })
 
-app.post("/lms/checkin", async ({body}) => {
-  return await LMSAPI.checkin(body.qr_data, body.accessToken)
+app.post("/lms/checkin", async ({body, request}) => {
+    const ua =  request.headers.get("user-agent");
+    return await LMSAPI.checkin(body.qr_data, body.accessToken, ua)
 }, {
   body: t.Object({
     accessToken: t.String(),
@@ -162,8 +162,7 @@ app.post("/lms/checkin", async ({body}) => {
 })
 
 app.post("/chat/create", async ({body}) => {
-  const chat_session = await CHATAPI.createChatSession(body.accessToken)
-  return chat_session
+    return await CHATAPI.createChatSession(body.accessToken)
 }, {
   body: t.Object({
     accessToken: t.String()

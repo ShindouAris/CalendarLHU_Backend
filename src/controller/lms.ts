@@ -1,4 +1,4 @@
-import { fetch } from "bun";
+ import { fetch } from "bun";
 import { status } from "elysia";
 
 const api = process.env.LMSDIEMDANHAPI || "";
@@ -29,7 +29,12 @@ export const LMSAPI = {
             }
         }
     },
-    checkin: async (qr_data: string, access_token: string) => {
+    checkin: async (qr_data: string, access_token: string, useragent: string | null) => {
+
+        if (useragent === null) {
+            return status("Bad Request")
+        }
+
         try {
             const sysID = qr_data.substring(0, 3)
             const tdata = qr_data.substring(3)
@@ -43,6 +48,7 @@ export const LMSAPI = {
             const res = await fetch(qr_checkin_api, {
                 method: "POST",
                 headers:{
+                    "user-agent": useragent,
                     authorization: `Bearer ${access_token}`,
                     "Content-type": "application/json"
                 },
