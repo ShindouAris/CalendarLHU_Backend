@@ -1,6 +1,6 @@
 import { fetch } from "bun"
 import { UserInfoResponse } from "../types/user";
-import { ElysiaCustomStatusResponse, status } from "elysia";
+import { status } from "elysia";
 import { verfiyToken } from "../utils/cloudflare";
 
 const apiLogin = process.env.AUTH  || ""
@@ -15,7 +15,7 @@ export const userApi = {
     login: async (idSinhVien: string, password: string, idLoginDevice: string, cf_verify_token: string, requestip?: string): Promise<loginRes | any> => {
         try {
             if (!idLoginDevice.startsWith('{')) {
-                throw new Error("Invalid idLoginDevice")
+                return status("Bad Request" , "Invalid idLoginDevice")
             }
             const valid = await verfiyToken(cf_verify_token, requestip)
             if (!valid) {
@@ -36,13 +36,13 @@ export const userApi = {
                       })       
                 }
             )
-            if (!response.ok) {
-                throw new Error(`Login Failed ${await response.json()}`)
-            }
             const json = await response.json()
+            if (!response.ok) {
+                return status("Bad Request", `Đăng nhập vào tài khoản ME thất bại: ${json.Message}`)
+            }
             const token = json.Token
             if (!token) {
-                throw new Error(`Đăng nhập thất bại - không tìm thấy token`)
+                return status("Bad Request", `Đăng nhập thất bại - không tìm thấy token`)
             }
             return {
                 "accessToken": token
@@ -52,6 +52,8 @@ export const userApi = {
                 console.log(error.message)
                 if (error.message.includes("Invalid idLoginDevice")) {
                     return status("Bad Request")
+                } if (error.message.includes("Đăng nhập vào tài khoản ME thất bại")) {
+                    return status("Bad Request", error.message)
                 }
                 return status("Internal Server Error", error.message ?? error.message)
             }
@@ -60,7 +62,7 @@ export const userApi = {
     userinfo: async (accessToken: string) => {
         try {
             if (!accessToken) {
-                throw new Error("UNAUTHORIZED")
+                return status("Unauthorized")
             }
             const response = await fetch(
                 userinfo, {
@@ -78,11 +80,11 @@ export const userApi = {
                         return status("Unauthorized", "Your token is invalid")
                     }
                 }
-                throw new Error(`Failed to get userdata`)
+                return status("Internal Server Error", `Failed to get userdata`)
             }
             const userRes: UserInfoResponse = await response.json()
             if (!userRes.data) {
-                throw new Error("Invalid response from server")
+                return status("Internal Server Error","Invalid response from server")
             }
             return userRes.data
         } catch (error) {
@@ -111,7 +113,7 @@ export const userApi = {
             )
 
             if (!response.ok) {
-                throw new Error(`Logout Failed`)
+                return status("Internal Server Error", `Logout Failed`)
             }
 
             return status("OK")
