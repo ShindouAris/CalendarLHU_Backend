@@ -9,7 +9,6 @@ import { CHATAPI } from "./controller/chat";
 
 const port = process.env.PORT || 3000
 
-
 const app = new Elysia()
         .use(cors({
           origin: ["https://calendarlhu.chisadin.site", 
@@ -25,6 +24,8 @@ const app = new Elysia()
         }))
         .listen(port);
 
+
+// Schedule AREA ------------------------------------------------------------
 app.post("/schedule", async ({ body }) => {
   return await calendarLHU.getStudentSchedule(body.studentID);
 }, {
@@ -40,7 +41,9 @@ app.post("/private-exam", async ({body}) => {
     ID: t.Number()
   })
 })
+// ----------------------------------------------------------------------------
 
+// WEATHER AREA -----------------------------------------------------------------
 app.get("/weather/current", async () => {
   const weather = await weatherapi.current();
   if (weather) {
@@ -81,7 +84,10 @@ app.get('/weather/forecast_all', async () => {
   }
   return { error: "Failed to fetch weather forecast" };
 })
+// ------------------------------------------------------------------
 
+
+// User AREA ---------------------------------------------------------
 app.post("/login", async ({body, server, request, cookie: {awt}}) => {
   // const ip = reques
     const credentials = await userApi.login(body.UserID, body.Password, body.DeviceInfo, body.cf_verify_token, server?.requestIP(request)?.address)
@@ -128,6 +134,25 @@ app.post("/logout", async ({body}) => {
 }
 )
 
+app.post("/login_create", async ({body}) => {
+    return await userApi.create_login_data(body.access_token)
+}, {
+    body: t.Object({
+        access_token: t.String()
+    })
+})
+
+app.post("/submit_credential", async ({body}) => {
+    return await userApi.submit_login_data(body.encrypted_data, body.access_token)
+}, {
+    body: t.Object({
+        encrypted_data: t.String(),
+        access_token: t.String()
+    })
+})
+// ----------------------------------------------------------------------
+
+// this api is derp, but I keep it for uptime ------------
 app.post("/mark", async ({body}) => {
   const mark_data = MarkStudent.getMark(body.accessToken)
 
@@ -143,6 +168,7 @@ app.post("/mark", async ({body}) => {
   })
 })
 
+// LMS AREA ------------------------------------
 app.post("/lms/diemdanh", async ({body}) => {
   return  await LMSAPI.getDsDiemdanh(body.accessToken)
 }, {
@@ -160,7 +186,9 @@ app.post("/lms/checkin", async ({body, request}) => {
     qr_data: t.String()
   })
 })
+// ------------------------------------------------------
 
+// FEATURE AREA -----------------------------------------------------------
 app.post("/chat/create", async ({body}) => {
     return await CHATAPI.createChatSession(body.accessToken)
 }, {
@@ -168,7 +196,9 @@ app.post("/chat/create", async ({body}) => {
     accessToken: t.String()
   })  
 })
-  
+// -----------------------------------------------------------------------
+
+
 app.get("/", () => "Hello Elysia")
 
 console.log(
