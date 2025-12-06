@@ -41,6 +41,17 @@ app.post("/private-exam", async ({body}) => {
     ID: t.Number()
   })
 })
+app.post("/next-class", async ({ body }) => {
+    const nextClass = await calendarLHU.get_next_class(body.studentID);
+    if (!nextClass) {
+        return []
+    }
+    return nextClass
+}, {
+  body: t.Object({
+    studentID: t.String()
+  })
+});
 // ----------------------------------------------------------------------------
 
 // WEATHER AREA -----------------------------------------------------------------

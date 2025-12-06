@@ -1,5 +1,7 @@
 import { fetch } from "bun"
 import { status } from "elysia"
+import {  isAfter,  parseISO } from 'date-fns';
+import {ApiResponse, ScheduleItem} from "../types/schedule";
 
 const api_url: string = process.env.API_URL || ""
 const private_schedule_api = process.env.PRIVATE_SCHEDULE_API || ""
@@ -14,7 +16,8 @@ const build_request = (studentID: number) => {
 }
 
 export const calendarLHU = {
-    getStudentSchedule: async (studentID: number) => {
+
+    getStudentSchedule: async (studentID: number): Promise<ApiResponse | null> => {
         const response = await fetch(api_url, {
         method: 'POST',
         headers: {
@@ -47,11 +50,31 @@ export const calendarLHU = {
     }
 
     return await response.json();
-  },
-  get_private_schedule: async (studentID: number) => {
+    },
+
+    get_next_class: async (studentID: string) => {
+      const now = new Date();
+      const scheduleData: ApiResponse | null = await calendarLHU.getStudentSchedule(Number(studentID));
+
+      if (!scheduleData?.data) return null;
+
+      const upcomingClasses = scheduleData.data[2]
+        .filter((schedule: ScheduleItem) => {
+          try {
+            const classDate = parseISO(schedule.ThoiGianBD);
+            const isCancelledOrOff = [1,2,6].includes(schedule?.TinhTrang);
+            return !isCancelledOrOff && isAfter(classDate, now);
+          } catch { return false; }
+        })
+        .sort((a, b) => +new Date(a.ThoiGianBD) - +new Date(b.ThoiGianBD));
+
+      return upcomingClasses[0] ?? null; // tiết gần nhất bro 🗣🔥
+    },
+
+    get_private_schedule: async (studentID: number) => {
     try {
       const res = await fetch(private_schedule_api, {
-        method: "POST", 
+        method: "POST",
         headers: {
           'Content-Type': 'application/json'
         },
@@ -61,7 +84,7 @@ export const calendarLHU = {
       })
 
       if (!res.ok) {
-        throw new Error(`Error trying to get user schedule: ${res.status} - ${await res.text()}`)
+        return status("Internal Server Error", `Error trying to get user schedule: ${res.status} - ${await res.text()}`)
       }
 
       const data = await res.json()
@@ -76,5 +99,5 @@ export const calendarLHU = {
         console.log(error.message)
       }
     }
-  }
+    }
 }
