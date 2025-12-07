@@ -2,7 +2,8 @@ import { Elysia, ElysiaCustomStatusResponse, status, t } from "elysia";
 import { calendarLHU } from "./controller/calendarlhu";
 import { weatherapi } from "./controller/weather";
 import { userApi } from "./controller/user";
-import { cors } from "@elysiajs/cors";import { logger } from "@tqman/nice-logger"
+import { cors } from "@elysiajs/cors";
+import { logger } from "@tqman/nice-logger"
 import { MarkStudent } from "./controller/mark";
 import { LMSAPI } from "./controller/lms";
 import { CHATAPI } from "./controller/chat";
