@@ -61,7 +61,7 @@ app.get("/weather/current", async () => {
   if (weather) {
     return weather;
   }
-  return { error: "Failed to fetch current weather" };
+  return status('Internal Server Error', { error: "Failed to fetch current weather" });
 });
 
 app.get("/weather/forecast", async ({ query }) => {
@@ -84,9 +84,9 @@ app.get("/weather/forecast", async ({ query }) => {
       const hourMatch = day.hour.find(hour => hour.time_epoch === Number(roundHourEpoch(timestamp)));
       if (hourMatch) return hourMatch; // trả đúng giờ
     }
-    return { error: "No forecast found for the given timestamp"};
+    return status('Not Found', { error: "No forecast found for the given timestamp"});
   }
-  return { error: "Failed to fetch weather forecast" };
+  return status('Internal Server Error', { error: "Failed to fetch weather forecast" });
 });
 
 app.get('/weather/forecast_all', async () => {
@@ -94,7 +94,7 @@ app.get('/weather/forecast_all', async () => {
   if (forecast) {
     return forecast;
   }
-  return { error: "Failed to fetch weather forecast" };
+  return status('Internal Server Error', { error: "Failed to fetch weather forecast" });
 })
 // ------------------------------------------------------------------
 
