@@ -7,6 +7,7 @@ import { logger } from "@tqman/nice-logger"
 import { MarkStudent } from "./controller/mark";
 import { LMSAPI } from "./controller/lms";
 import { CHATAPI } from "./controller/chat";
+import { automationTool } from "./controller/autoKhaoSat";
 
 const port = process.env.PORT || 3000
 
@@ -199,6 +200,35 @@ app.post("/lms/checkin", async ({body, request}) => {
   })
 })
 // ------------------------------------------------------
+
+// Automation Tools -------------------------------------
+
+app.post("/qa/process_survey", async ({body}) => {
+    return await automationTool.process_survey(body.access_token, body.device_info, body.itemKhaoSat)
+}, {
+    body: t.Object({
+        access_token: t.String(),
+        device_info: t.Nullable(t.String()),
+        itemKhaoSat: t.Object({
+          KhaoSatID: t.String(),
+          TenKhaoSat: t.String(),
+          MoTa: t.String(),
+          templateID: t.String(),
+        })
+    })
+}
+)
+
+app.post("/qa/fetch_pending", async ({body}) => {
+    return await automationTool.fetch_pending(body.access_token)
+}, {
+    body: t.Object({
+        access_token: t.String()
+    })
+}
+)
+
+// ---------------------------------------------------------
 
 // FEATURE AREA -----------------------------------------------------------
 app.post("/chat/create", async ({body}) => {
