@@ -18,7 +18,6 @@ interface HocKyGroup {
     reason?: string;
 }
 
-const api_mark = process.env.API_MARK || ""
 
 async function getGradesGrouped(accessToken: string): Promise<HocKyGroup | null> {
     try {
