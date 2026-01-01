@@ -17,7 +17,7 @@ const build_request = (studentID: number) => {
 
 export const calendarLHU = {
 
-    getStudentSchedule: async (studentID: number): Promise<ApiResponse | null> => {
+    getStudentSchedule: async (studentID: number, dateLimit: string | null = null): Promise<ApiResponse | null> => {
         const response = await fetch(api_url, {
         method: 'POST',
         headers: {
@@ -47,6 +47,9 @@ export const calendarLHU = {
         }
       }
       throw new Error(`API request failed: ${response.status}`);
+    }
+    if (dateLimit !== null) {
+
     }
 
     return await response.json();

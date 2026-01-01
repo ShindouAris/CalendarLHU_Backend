@@ -1,4 +1,4 @@
-interface UserResponse {
+export interface UserResponse {
     UserID: string;
     UserName: string;
     LastName: string;
@@ -20,4 +20,11 @@ interface UserResponse {
 export interface UserInfoResponse {
     data: UserResponse;
 }
-  
+
+export interface UserDataForAIUsage {
+    UserID: string;
+    isAuth: boolean;
+    FullName: string;
+    GroupName: string;
+    Class: string;
+}

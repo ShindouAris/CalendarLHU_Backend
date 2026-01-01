@@ -17,7 +17,7 @@ export const verfiyToken = async (token: string, remoteip?: string): Promise<boo
             payload.append('remoteip', remoteip);
         }
 
-        const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        const response = await fetch(apiCF, {
               method: 'POST',
               body: payload
           });

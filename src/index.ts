@@ -8,6 +8,7 @@ import { MarkStudent } from "./controller/mark";
 import { LMSAPI } from "./controller/lms";
 import { CHATAPI } from "./controller/chat";
 import { automationTool } from "./controller/autoKhaoSat";
+import {chisaAIV2_Chat} from "./controller/ai";
 
 const port = process.env.PORT || 3000
 
@@ -229,6 +230,17 @@ app.post("/qa/fetch_pending", async ({body}) => {
 )
 
 // ---------------------------------------------------------
+
+// ChisaAI Area -------------------------------------------
+
+app.post('chisaAI/v2/chat', async ({request}) => {
+    const req = await request.json()
+
+    return await chisaAIV2_Chat(req)
+
+}, {
+    parse: 'none'
+})
 
 // FEATURE AREA -----------------------------------------------------------
 app.post("/chat/create", async ({body}) => {

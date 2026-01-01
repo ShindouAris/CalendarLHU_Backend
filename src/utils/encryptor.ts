@@ -17,7 +17,7 @@ const encryptData = (payload: string) => {
     return Buffer.concat([iv, authTag, encrypted]).toString("base64")
 }
 
-const decryptData = (encrypted: string) => {
+export const decryptData = (encrypted: string) => {
     const raw = Buffer.from(encrypted, "base64");
     const iv = raw.subarray(0, 12);
     const authTag = raw.subarray(12, 28);
@@ -29,11 +29,16 @@ const decryptData = (encrypted: string) => {
     return decipher.update(ciphertext) + decipher.final("utf8");
 }
 
-export const encryptLoginData = (access_token: string, nonce: any): string => {
+export const encryptLoginData = (access_token: string, nonce: string | null = null): string => {
     if (!access_token) {
         throw new Error("No access token provided");
     }
 
+    if (!nonce) {
+        return encryptData(JSON.stringify({
+            "access_token": access_token
+        }))
+    }
     const payload = {
         "access_token": access_token,
         "expired_at": Date.now() + 60_000,
