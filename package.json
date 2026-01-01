@@ -1,6 +1,6 @@
 {
-  "name": "CalendarLHU_Backend",
-  "version": "1.0.50",
+  "name": "lhu-dashboard",
+  "version": "2.0.0",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
