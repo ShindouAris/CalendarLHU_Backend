@@ -68,6 +68,9 @@ const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
         - If a request requires unavailable data or the feature / tool is not ready yet, clearly explain the limitation and suggest what the student can do instead.
         - If the tool fails or returns an error, inform the student politely!.
         
+        UI instructions:
+        - When rendering latex math, you must include the delimiters ($..$) or ($$...$$) to your latex for client to render. Do not to use codeblocks unless specifically requested by the student.
+        
         Guidelines for using tools:
          -Ask for student ID when schedule data requires it and it is not provided..
         - When providing weather infomation, you can alert the student about weather conditions that may affect their commute or outdoor activities,
@@ -122,15 +125,16 @@ export const chisaAIV2_Chat = async (req: any) => {
     const access_token = req['access_token']
 
     let sysPrompt;
+    const { messages }: { messages: UIMessage[] } = req;
 
     try {
         const userData: UserResponse | null = await userApi.getUserInfo(access_token)
         sysPrompt = buildSystemPrompt(userData, access_token)
+        msgBuffer.set(userData.UserID, messages)
     } catch (error) {
-        sysPrompt = systemPrompt[0].content
+        return status("Unauthorized", "Bạn không có quyền truy cập vào Chisa AI. Vui lòng đăng nhập lại.")
     }
 
-    const { messages }: { messages: UIMessage[] } = req;
 
     const stream = streamText({
         model: 'openai/gpt-oss-120b',
