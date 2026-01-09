@@ -1,10 +1,11 @@
-import { fetch } from "bun";
-import { isAfter, parseISO } from "date-fns";
-import type { ApiResponse, ScheduleItem } from "../../types/schedule";
+import {fetch} from "bun";
+import {isAfter, parseISO} from "date-fns";
+import type {ApiResponse, ScheduleItem} from "../../types/schedule";
 import {tool} from "ai";
 import {z} from "zod";
 
 const api_url = process.env.API_URL ?? "";
+const tapi = process.env.TAPI ?? "";
 
 const buildRequest = (studentID: number) => ({
   Ngay: new Date().toISOString(),
@@ -23,37 +24,8 @@ const isValidSchedule = (s: ScheduleItem, fromDate: Date) => {
   }
 };
 
-export interface ScheduleResponse {
-  id: number;
-  startTime: string;
-  endTime: string;
-  subject: string;
-  teacher: string;
-  room: string;
-  onlineLink?: string;
-  status: number;
-}
-
-export const mapScheduleToResponse = (
-  item: ScheduleItem
-): ScheduleResponse => {
-  return {
-    id: item.ID,
-    startTime: item.ThoiGianBD,
-    endTime: item.ThoiGianKT,
-    subject: item.TenMonHoc,
-    teacher: item.GiaoVien,
-    room: item.TenPhong,
-    onlineLink: item.OnlineLink || undefined,
-    status: item.TinhTrang,
-  };
-};
-
 export const calenAPI = {
-  getStudentSchedule: async (
-    studentID: number,
-    dateLimit?: string
-  ): Promise<ScheduleItem[]> => {
+  getStudentSchedule: async (studentID: number, dateLimit?: string): Promise<ScheduleItem[]> => {
     const res = await fetch(api_url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -72,6 +44,20 @@ export const calenAPI = {
     const limitDate = parseISO(dateLimit);
     return schedules.filter((s: ScheduleItem) => isValidSchedule(s, limitDate));
   },
+    getExamSchedule: async (studentID: number) => {
+    const res = await fetch(`${tapi}/calen/auth/XemLich_LichThi`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildRequest(studentID)),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Schedule API failed: ${res.status} - ${res.statusText}`);
+    }
+
+    const json = await res.json();
+        return json.data?.[1] ?? []
+  },
 
   getNextClass: async (studentID: number) => {
     const now = new Date();
@@ -87,49 +73,6 @@ export const calenAPI = {
       )[0] ?? null;
   }
 };
-
-export const CalenToolsV1 = [
-    {
-      "type": "function",
-      "function": {
-        "name": "get_student_schedule",
-        "description": "Get a student's class schedule, optionally limited to classes after a specific date",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "student_id": {
-              "type": "number",
-              "description": "Student ID"
-            },
-            "date_limit": {
-              "type": "string",
-              "description": "ISO date string. Only classes starting after this date will be returned (optional but recommended," +
-                  " using without it may return a large amount of data and make your system admin go bankrupt)",
-              "format": "date-time"
-            }
-          },
-          "required": ["student_id"]
-        }
-      }
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "get_next_class",
-        "description": "Get the nearest upcoming class for a student",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "student_id": {
-              "type": "number",
-              "description": "Student ID"
-            }
-          },
-          "required": ["student_id"]
-        }
-      }
-    }
-] as const;
 
 export const getStudentScheduleTool = tool({
   description: 'Get the student schedule up to a certain date',
@@ -150,4 +93,14 @@ export const getNextClassTool = tool({
   execute: async ({ studentID }) => {
     return await calenAPI.getNextClass(studentID);
   },
+});
+
+export const getExamScheduleTool = tool({
+    description: 'Get the student exam schedule up to a certain date',
+    inputSchema: z.object({
+      studentID: z.number().describe('The ID of the student'),
+    }),
+    execute: async ({ studentID }) => {
+      return await calenAPI.getExamSchedule(studentID);
+    },
 });
