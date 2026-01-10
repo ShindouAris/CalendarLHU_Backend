@@ -151,7 +151,7 @@ export const chisaAIV2_Chat = async (req: any) => {
 
 
     const stream = streamText({
-        model: 'openai/gpt-oss-120b',
+        model: 'deepseek/deepseek-v3.2',
         system: sysPrompt,
         messages: await convertToModelMessages(messages),
         tools: tool_v2_for_chisa,
