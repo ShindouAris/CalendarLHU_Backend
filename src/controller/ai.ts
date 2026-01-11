@@ -1,6 +1,7 @@
 import {getStudentScheduleTool, getNextClassTool, getExamScheduleTool} from "./AI_TOOLS_V1/calen";
 import dayjs from "dayjs";
 import { weatherCurrentTool, weatherForecastTool,weatherForecastDayTool} from "./AI_TOOLS_V1/weather";
+import {extractWebTool, searchWebTool} from "./AI_TOOLS_V1/web";
 import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway} from "ai";
 
 import {LmsDiemDanhTool} from "./AI_TOOLS_V1/lms";
@@ -56,6 +57,8 @@ const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
 }
 
 const tool_v2_for_chisa: ToolSet = {
+    searchWebTool,
+    extractWebTool,
     getNextClassTool,
     getExamScheduleTool,
     getStudentScheduleTool,
