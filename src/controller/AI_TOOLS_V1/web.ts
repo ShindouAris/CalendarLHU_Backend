@@ -10,12 +10,10 @@ export const WebController = {
     searchWeb: async (query: string)=> {
         console.log(`Searching for ${query}`);
         try {
-            const response = await web.search(query, {
+            return await web.search(query, {
                 timeout: 36000,
                 maxResults: 10,
-            })
-            console.log(`Web search response: ${JSON.stringify(response)}`);
-            return response;
+            });
         } catch (error) {
             return "Error searching web: " + error;
         }
@@ -24,13 +22,9 @@ export const WebController = {
         console.log(`Extracting ${web_url.length} website`);
         try {
 
-            const result = await web.extract(web_url, {
+            return await web.extract(web_url, {
                 timeout: 36000
             })
-
-            console.log(`Web extract response: ${JSON.stringify(result)}`);
-
-            return result
         } catch (error) {
             return "Error extracting web data: " + error;
         }
