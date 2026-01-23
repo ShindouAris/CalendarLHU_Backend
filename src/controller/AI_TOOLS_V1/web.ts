@@ -11,7 +11,6 @@ export const WebController = {
         console.log(`Searching for ${query}`);
         try {
             return await web.search(query, {
-                timeout: 36000,
                 maxResults: 10,
             });
         } catch (error) {
