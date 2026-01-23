@@ -22,9 +22,7 @@ export const WebController = {
         console.log(`Extracting ${web_url.length} website`);
         try {
 
-            return await web.extract(web_url, {
-                timeout: 36000
-            })
+            return await web.extract(web_url)
         } catch (error) {
             return "Error extracting web data: " + error;
         }
