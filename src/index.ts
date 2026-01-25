@@ -9,7 +9,7 @@ import { LMSAPI } from "./controller/lms";
 import { CHATAPI } from "./controller/chat";
 import { automationTool } from "./controller/autoKhaoSat";
 import { chisaAIV2_Chat, getToolsForFrontend } from "./controller/ai";
-import { createChat, persistMessages, getChatSummaries } from "./controller/chatApi";
+import { listChats, loadChatHistoryHandler } from "./controller/chatApi";
 import { connectDB } from "./databases";
 
 const port = process.env.PORT || 3000
@@ -253,29 +253,21 @@ app.post("/chat/create", async ({body}) => {
   })  
 })
 
-// Chats (MongoDB): create, persist messages, list summaries
-app.post("/chats", async ({ body }) => {
-  return createChat(body as { user_id: string });
+// Chats (MongoDB): list chats (accessToken), load history (accessToken + next_token)
+app.post("/chats/list", async ({ body }) => {
+  return listChats(body as { accessToken: string });
 }, {
-  body: t.Object({ user_id: t.String() }),
+  body: t.Object({ accessToken: t.String() }),
 })
 
-app.post("/chats/:chatId/messages", async ({ params, body }) => {
-  return persistMessages(params.chatId, body as { user_id: string; messages: Array<{ role: "user" | "assistant" | "system" | "data"; content: string }> });
+app.post("/chats/:chatId/history", async ({ params, body }) => {
+  return loadChatHistoryHandler(params.chatId, body as { accessToken: string; next_token?: string; limit?: number });
 }, {
   body: t.Object({
-    user_id: t.String(),
-    messages: t.Array(t.Object({
-      role: t.Union([t.Literal("user"), t.Literal("assistant"), t.Literal("system"), t.Literal("data")]),
-      content: t.String(),
-    })),
+    accessToken: t.String(),
+    next_token: t.Optional(t.String()),
+    limit: t.Optional(t.Number()),
   }),
-})
-
-app.get("/chats/summaries", async ({ query }) => {
-  return getChatSummaries(query as { user_id: string });
-}, {
-  query: t.Object({ user_id: t.String() }),
 })
 // -----------------------------------------------------------------------
 
