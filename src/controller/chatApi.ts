@@ -99,18 +99,19 @@ export async function loadChatHistoryHandler(
     : await getChatForUserByUUID(chatId, userId);
   if (!chat) return status(404, { error: "Chat not found or access denied" });
 
-  let after: { createdAt: Date; _id: Types.ObjectId } | undefined;
+  let before: { createdAt: Date; _id: Types.ObjectId } | undefined;
   if (next_token) {
     const decoded = decodeNextToken(next_token);
     if (!decoded) return status(400, { error: "Invalid next_token" });
-    after = decoded;
+    before = decoded;
   }
   const messages = await loadChatHistory({
     chatId: chat._id,
     limit,
-    after,
+    before,
   });
 
+  // messages are newest -> oldest, so the last item is the oldest in this page
   const last = messages[messages.length - 1] as
     | { createdAt: Date; _id: Types.ObjectId }
     | undefined;
@@ -127,7 +128,7 @@ export async function loadChatHistoryHandler(
       role: m.role,
       parts: (m as any).parts ?? [],
       createdAt: m.createdAt,
-    })),
+    })).reverse(),
     next_token: next_token_out,
   };
 }

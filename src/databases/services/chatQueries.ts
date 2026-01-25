@@ -54,33 +54,34 @@ export interface LoadHistoryOptions {
   chatId: Types.ObjectId;
   limit?: number;
   skip?: number;
-  /** Cursor-based: return messages after this date (exclusive). Use with createdAt + _id for stable pagination. */
-  after?: { createdAt: Date; _id: Types.ObjectId };
+  /** Cursor-based: return messages before this date (exclusive). Use with createdAt + _id for stable pagination. */
+  before?: { createdAt: Date; _id: Types.ObjectId };
 }
 
 /** Load chat history with pagination. Fetches from Message collection only. */
 export async function loadChatHistory(options: LoadHistoryOptions) {
-  const { chatId, limit = 20, skip = 0, after } = options;
+  const { chatId, limit = 20, before } = options;
 
-  const filter: Record<string, unknown> = { chat: chatId };
+  const filter: Record<string, unknown> = {
+    chat: chatId,
+  };
 
-  if (after) {
+  if (before) {
     filter.$or = [
-      { createdAt: { $gt: after.createdAt } },
+      { createdAt: { $lt: before.createdAt } },
       {
-        createdAt: after.createdAt,
-        _id: { $gt: after._id },
+        createdAt: before.createdAt,
+        _id: { $lt: before._id },
       },
     ];
   }
 
-  const skipToUse = after ? 0 : skip;
   const messages = await MessageModel.find(filter)
-    .sort({ createdAt: 1 })
-    .skip(skipToUse)
+    .sort({ createdAt: -1, _id: -1 }) // newest → oldest (stable)
     .limit(limit)
     .lean();
 
+  // Return newest → oldest (bottom → top)
   return messages;
 }
 
