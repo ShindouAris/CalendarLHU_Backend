@@ -1,12 +1,13 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
+import { UIMessagePart } from "ai";
 
 export type MessageRole = "user" | "assistant" | "system";
 
 export interface IMessage extends Document {
   _id: Types.ObjectId;
-  chat: Types.ObjectId;
+  chat: Types.ObjectId; // Reference to Chat
   role: MessageRole;
-  content: string;
+  parts: UIMessagePart<Record<string, any>, Record<string, any>>[];
   createdAt: Date;
 }
 
@@ -18,7 +19,7 @@ const MessageSchema = new Schema<IMessage>(
       required: true,
       enum: ["user", "assistant", "system"],
     },
-    content: { type: String, required: true },
+    parts: { type: Schema.Types.Mixed, required: true },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );

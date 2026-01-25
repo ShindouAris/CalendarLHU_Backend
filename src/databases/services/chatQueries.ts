@@ -3,6 +3,7 @@ import { ChatModel } from "../models/chat";
 import { MessageModel } from "../models/message";
 import { UserModel } from "../models/user";
 import type { MessageRole } from "../models/message";
+import { UIMessagePart } from "ai";
 
 // -----------------------------------------------------------------------------
 // Example queries for the scalable Chat + Message architecture
@@ -39,12 +40,12 @@ export async function createChatForUser(userId: string) {
 export async function addMessage(
   chatId: Types.ObjectId,
   role: MessageRole,
-  content: string
+  parts: UIMessagePart<Record<string, any>, Record<string, any>>[]
 ) {
   const doc = await MessageModel.create({
     chat: chatId,
     role,
-    content,
+    parts,
   });
   return doc;
 }
@@ -103,13 +104,16 @@ export async function deleteChat(chatId: Types.ObjectId) {
 /** Bulk insert messages. Does NOT update Chat. */
 export async function bulkInsertMessages(
   chatId: Types.ObjectId,
-  messages: Array<{ role: MessageRole; content: string }>
+  messages: Array<{
+    role: MessageRole;
+    parts: UIMessagePart<Record<string, any>, Record<string, any>>[];
+  }>
 ) {
   if (messages.length === 0) return [];
   const docs = messages.map((m) => ({
     chat: chatId,
     role: m.role,
-    content: m.content,
+    parts: m.parts,
   }));
   const inserted = await MessageModel.insertMany(docs);
   return inserted;
@@ -143,6 +147,7 @@ export async function pruneChatsForUser(
 
 export interface ChatSummary {
   chatId: string;
+  chatUUID?: string;
   createdAt: Date;
   updatedAt: Date;
   messageCount: number;
@@ -161,6 +166,7 @@ export async function listChatSummaries(userId: string): Promise<ChatSummary[]> 
     const messageCount = await MessageModel.countDocuments({ chat: c._id });
     summaries.push({
       chatId: String(c._id),
+      chatUUID: (c as any).chatID,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
       messageCount,
@@ -178,6 +184,20 @@ export async function getChatForUser(
   if (!user) return null;
   const chat = await ChatModel.findOne({
     _id: chatId,
+    user: user._id,
+  }).lean();
+  return chat as { _id: Types.ObjectId; user: Types.ObjectId } | null;
+}
+
+/** Get chat by UUID (chatID) and ensure it belongs to user (UserID string). */
+export async function getChatForUserByUUID(
+  chatUUID: string,
+  userId: string
+): Promise<{ _id: Types.ObjectId; user: Types.ObjectId } | null> {
+  const user = await UserModel.findOne({ UserID: userId }).lean();
+  if (!user) return null;
+  const chat = await ChatModel.findOne({
+    chatID: chatUUID,
     user: user._id,
   }).lean();
   return chat as { _id: Types.ObjectId; user: Types.ObjectId } | null;

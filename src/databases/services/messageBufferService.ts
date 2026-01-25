@@ -5,13 +5,14 @@ import {
   pruneChatsForUser,
 } from "./chatQueries";
 import type { MessageRole } from "../models/message";
+import { UIMessagePart } from "ai";
 
 const DEBOUNCE_MS = 750;
 const MAX_CHATS_PER_USER = 30;
 
 interface BufferedMessage {
   role: MessageRole;
-  content: string;
+  parts: UIMessagePart<Record<string, any>, Record<string, any>>[];
 }
 
 interface BufferEntry {

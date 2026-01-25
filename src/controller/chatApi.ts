@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { userApi } from "./user";
 import {
   getChatForUser,
+  getChatForUserByUUID,
   loadChatHistory,
   listChatSummaries,
   type ChatSummary,
@@ -49,13 +50,15 @@ export async function loadChatHistoryHandler(
 ) {
   const { accessToken, next_token, limit = 20 } = body;
   if (!accessToken) return status(401, { error: "accessToken required" });
-  if (!Types.ObjectId.isValid(chatId)) return status(400, { error: "Invalid chatId" });
 
   const userId = await resolveUserFromToken(accessToken);
   if (!userId) return status(401, { error: "Invalid or expired token" });
 
-  const cid = new Types.ObjectId(chatId);
-  const chat = await getChatForUser(cid, userId);
+  // Support both Mongo ObjectId and UUID chatID from frontend.
+  const isMongoId = Types.ObjectId.isValid(chatId);
+  const chat = isMongoId
+    ? await getChatForUser(new Types.ObjectId(chatId), userId)
+    : await getChatForUserByUUID(chatId, userId);
   if (!chat) return status(404, { error: "Chat not found or access denied" });
 
   let after: { createdAt: Date; _id: Types.ObjectId } | undefined;
@@ -65,7 +68,7 @@ export async function loadChatHistoryHandler(
     after = decoded;
   }
   const messages = await loadChatHistory({
-    chatId: cid,
+    chatId: chat._id,
     limit,
     after,
   });
@@ -78,11 +81,22 @@ export async function loadChatHistoryHandler(
       ? encodeNextToken(last.createdAt, last._id)
       : null;
 
+  const partsToText = (parts: unknown): string => {
+    if (!Array.isArray(parts)) return "";
+    return parts
+      .filter((p: any) => p && p.type === "text" && typeof p.text === "string")
+      .map((p: any) => p.text)
+      .join("");
+  };
+
   return {
+    chatId: String(chat._id),
+    chatUUID: (chat as any).chatID ?? (isMongoId ? null : chatId),
     messages: messages.map((m) => ({
       id: String(m._id),
       role: m.role,
-      content: m.content,
+      parts: (m as any).parts ?? [],
+      content: partsToText((m as any).parts),
       createdAt: m.createdAt,
     })),
     next_token: next_token_out,

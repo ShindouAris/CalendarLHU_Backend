@@ -2,7 +2,7 @@ import {getStudentScheduleTool, getNextClassTool, getExamScheduleTool} from "./A
 import dayjs from "dayjs";
 import { weatherCurrentTool, weatherForecastTool,weatherForecastDayTool} from "./AI_TOOLS_V1/weather";
 import {extractWebTool, searchWebTool} from "./AI_TOOLS_V1/web";
-import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway, generateId} from "ai";
+import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway, generateId, UIMessagePart} from "ai";
 
 import {LmsDiemDanhTool} from "./AI_TOOLS_V1/lms";
 import {  getElibThongSoTool,
@@ -21,6 +21,7 @@ import { UserModel } from "../databases/models/user";
 import {
   getOrCreateChatForUser,
   getChatForUser,
+  getChatForUserByUUID,
   createChatForUser,
 } from "../databases/services/chatQueries";
 import { addToBuffer } from "../databases/services/messageBufferService";
@@ -184,6 +185,7 @@ export const chisaAIV2_Chat = async (req: any) => {
 
     let sysPrompt;
     const {id, messages }: {id: string, messages: UIMessage[] } = req;
+    console.log("chisaAIV2_Chat called for user ", req['user_id'], " with chat id ", id)
 
     try {
         const precachedUser = await usercacheBuffer.getUserData(req['user_id'])
@@ -214,44 +216,72 @@ export const chisaAIV2_Chat = async (req: any) => {
       generateMessageId: () => crypto.randomUUID(),
       onFinish: async (msg) => {
         const userId = req['user_id'] as string | undefined;
-        if (!userId) return;
+        if (!userId) {
+          console.log('[onFinish] userId not found in req:', req);
+          return;
+        }
 
         try {
           const allMessages = msg.messages;
-          const messagesToSave: Array<{ role: MessageRole; content: string }> = [];
-          const getTextFromParts = (parts: any[]) =>
-            parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('');
+          console.log('[onFinish] allMessages:', allMessages);
 
-          let assistantContent = "";
+          const messagesToSave: Array<{
+            role: MessageRole;
+            parts: UIMessagePart<Record<string, any>, Record<string, any>>[];
+          }> = [];
+
+          let lastAssistantParts: UIMessagePart<Record<string, any>, Record<string, any>>[] | null = null;
+          let lastUserParts: UIMessagePart<Record<string, any>, Record<string, any>>[] | null = null;
+
           for (let i = allMessages.length - 1; i >= 0; i--) {
-            const m = allMessages[i];
-            if (m.role === 'assistant') {
-              if (!assistantContent) assistantContent = getTextFromParts(m.parts ?? []);
+            const m = allMessages[i] as any;
+
+            if (!lastAssistantParts && m?.role === 'assistant' && Array.isArray(m.parts)) {
+              lastAssistantParts = m.parts;
               continue;
             }
-            if (m.role === 'user') {
-              const content = getTextFromParts(m.parts ?? []);
-              if (content) messagesToSave.push({ role: 'user', content });
-              break;
+            if (!lastUserParts && m?.role === 'user' && Array.isArray(m.parts)) {
+              lastUserParts = m.parts;
+              continue;
             }
-          }
-          if (assistantContent) messagesToSave.push({ role: 'assistant', content: assistantContent });
 
-          if (messagesToSave.length === 0) return;
+            if (lastAssistantParts && lastUserParts) break;
+          }
+
+          if (lastUserParts) messagesToSave.push({ role: 'user', parts: lastUserParts });
+          if (lastAssistantParts) messagesToSave.push({ role: 'assistant', parts: lastAssistantParts });
+
+          console.log('[onFinish] messagesToSave:', messagesToSave);
+
+          if (messagesToSave.length === 0) {
+            console.log('[onFinish] No messages to save. Exit.');
+            return;
+          }
 
           let chat: { _id: unknown; user: Types.ObjectId } | null = null;
           const chatId = req['id'] as string | undefined;
-          if (chatId && Types.ObjectId.isValid(chatId)) {
-            chat = await getChatForUser(new Types.ObjectId(chatId), userId);
+          if (chatId) {
+            if (Types.ObjectId.isValid(chatId)) {
+              console.log('[onFinish] Try getChatForUser with mongo chatId:', chatId, 'userId:', userId);
+              chat = await getChatForUser(new Types.ObjectId(chatId), userId);
+            } else {
+              console.log('[onFinish] Try getChatForUserByUUID with chatUUID:', chatId, 'userId:', userId);
+              chat = await getChatForUserByUUID(chatId, userId);
+            }
           }
           if (!chat) {
+            console.log('[onFinish] No chat found by chatId, try createChatForUser with userId:', userId);
             chat = (await createChatForUser(userId)) as { _id: unknown; user: Types.ObjectId } | null;
           }
           if (!chat) {
+            console.log('[onFinish] No chat created, try getOrCreateChatForUser with userId:', userId);
             chat = await getOrCreateChatForUser(userId) as { _id: unknown; user: Types.ObjectId } | null;
           }
           if (chat?._id && chat?.user) {
+            console.log('[onFinish] Adding to buffer chatId:', chat._id, 'user:', chat.user, 'messagesToSave:', messagesToSave);
             addToBuffer(chat._id as Types.ObjectId, chat.user, messagesToSave);
+          } else {
+            console.log('[onFinish] Unable to resolve chat for saving history. chat:', chat);
           }
         } catch (err) {
           console.error("Failed to save chat history in toUIMessageStreamResponse", err);
