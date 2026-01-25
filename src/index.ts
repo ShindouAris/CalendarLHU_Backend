@@ -246,9 +246,13 @@ app.post("chisaAI/v2/chat", async ({ request }) => {
 
 
 app.post("/chisaAI/v2/list", async ({ body }) => {
-  return listChats(body as { accessToken: string });
+  return listChats(body as { accessToken: string; next_token?: string; limit?: number });
 }, {
-  body: t.Object({ accessToken: t.String() }),
+  body: t.Object({
+    accessToken: t.String(),
+    next_token: t.Nullable(t.String()),
+    limit: t.Optional(t.Number()),
+  }),
 })
 
 app.post("/chisaAI/v2/:chatId/history", async ({ params, body }) => {
@@ -256,7 +260,7 @@ app.post("/chisaAI/v2/:chatId/history", async ({ params, body }) => {
 }, {
   body: t.Object({
     accessToken: t.String(),
-    next_token: t.Optional(t.String()),
+    next_token: t.Nullable(t.String()),
     limit: t.Optional(t.Number()),
   }),
 })

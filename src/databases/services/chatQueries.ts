@@ -153,6 +153,64 @@ export interface ChatSummary {
   messageCount: number;
 }
 
+export interface ListChatSummariesOptions {
+  limit?: number;
+  /** Cursor: return chats *after* this cursor in the sorted list (updatedAt desc, _id desc). */
+  after?: { updatedAt: Date; _id: Types.ObjectId };
+}
+
+/**
+ * List chat summaries for user with cursor-based pagination.
+ * Sort: updatedAt desc, _id desc (stable).
+ */
+export async function listChatSummariesPaginated(
+  userId: string,
+  options: ListChatSummariesOptions
+): Promise<{ chats: ChatSummary[]; next?: { updatedAt: Date; _id: Types.ObjectId } }> {
+  const { limit = 20, after } = options;
+
+  const user = await UserModel.findOne({ UserID: userId }).lean();
+  if (!user) return { chats: [] };
+  const uid = user._id as Types.ObjectId;
+
+  const filter: Record<string, unknown> = { user: uid };
+  if (after) {
+    filter.$or = [
+      { updatedAt: { $lt: after.updatedAt } },
+      { updatedAt: after.updatedAt, _id: { $lt: after._id } },
+    ];
+  }
+
+  const docs = await ChatModel.find(filter)
+    .sort({ updatedAt: -1, _id: -1 })
+    .limit(Math.max(1, Math.min(100, limit)) + 1)
+    .lean();
+
+  const hasMore = docs.length > Math.max(1, Math.min(100, limit));
+  const page = hasMore ? docs.slice(0, Math.max(1, Math.min(100, limit))) : docs;
+
+  const counts = await Promise.all(
+    page.map((c) => MessageModel.countDocuments({ chat: c._id }))
+  );
+
+  const chats: ChatSummary[] = page.map((c, idx) => ({
+    chatId: String(c._id),
+    chatUUID: (c as any).chatID,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    messageCount: counts[idx] ?? 0,
+  }));
+
+  const next = hasMore
+    ? ({ updatedAt: page[page.length - 1].updatedAt, _id: page[page.length - 1]._id } as {
+        updatedAt: Date;
+        _id: Types.ObjectId;
+      })
+    : undefined;
+
+  return { chats, next };
+}
+
 /** List chat summaries for user (by UserID string). Sorted by updatedAt desc. */
 export async function listChatSummaries(userId: string): Promise<ChatSummary[]> {
   const user = await UserModel.findOne({ UserID: userId }).lean();

@@ -5,7 +5,7 @@ import {
   getChatForUser,
   getChatForUserByUUID,
   loadChatHistory,
-  listChatSummaries,
+  listChatSummariesPaginated,
   type ChatSummary,
 } from "../databases/services/chatQueries";
 
@@ -27,6 +27,24 @@ function decodeNextToken(
   }
 }
 
+function encodeChatListToken(updatedAt: Date, _id: Types.ObjectId): string {
+  const payload = { t: updatedAt.getTime(), id: String(_id) };
+  return Buffer.from(JSON.stringify(payload), "utf-8").toString("base64url");
+}
+
+function decodeChatListToken(
+  token: string
+): { updatedAt: Date; _id: Types.ObjectId } | null {
+  try {
+    const raw = Buffer.from(token, "base64url").toString("utf-8");
+    const { t, id } = JSON.parse(raw) as { t: number; id: string };
+    if (typeof t !== "number" || !id) return null;
+    return { updatedAt: new Date(t), _id: new Types.ObjectId(id) };
+  } catch {
+    return null;
+  }
+}
+
 async function resolveUserFromToken(accessToken: string): Promise<string | null> {
   const user = await userApi.userinfo(accessToken);
   if (!user || typeof user !== "object" || !("UserID" in user)) return null;
@@ -34,13 +52,33 @@ async function resolveUserFromToken(accessToken: string): Promise<string | null>
 }
 
 /** List chats: dùng accessToken, lấy UserID từ userinfo rồi list. */
-export async function listChats(body: { accessToken: string }) {
-  const { accessToken } = body;
+export async function listChats(body: {
+  accessToken: string;
+  next_token?: string;
+  limit?: number;
+}) {
+  const { accessToken, next_token, limit = 20 } = body;
   if (!accessToken) return status(401, { error: "accessToken required" });
   const userId = await resolveUserFromToken(accessToken);
   if (!userId) return status(401, { error: "Invalid or expired token" });
-  const chats: ChatSummary[] = await listChatSummaries(userId);
-  return { chats };
+
+  let after: { updatedAt: Date; _id: Types.ObjectId } | undefined;
+  if (next_token) {
+    const decoded = decodeChatListToken(next_token);
+    if (!decoded) return status(400, { error: "Invalid next_token" });
+    after = decoded;
+  }
+
+  const page = await listChatSummariesPaginated(userId, {
+    limit,
+    after,
+  });
+
+  const next_token_out = page.next
+    ? encodeChatListToken(page.next.updatedAt, page.next._id)
+    : null;
+
+  return { chats: page.chats as ChatSummary[], next_token: next_token_out };
 }
 
 /** Load chat history với phân trang next_token. Cần accessToken để xác thực chat thuộc user. */
