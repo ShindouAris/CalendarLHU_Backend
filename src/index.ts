@@ -244,6 +244,23 @@ app.post("chisaAI/v2/chat", async ({ request }) => {
   return await chisaAIV2_Chat(req);
 }, { parse: "none" });
 
+
+app.post("/chisaAI/v2/list", async ({ body }) => {
+  return listChats(body as { accessToken: string });
+}, {
+  body: t.Object({ accessToken: t.String() }),
+})
+
+app.post("/chisaAI/v2/:chatId/history", async ({ params, body }) => {
+  return loadChatHistoryHandler(params.chatId, body as { accessToken: string; next_token?: string; limit?: number });
+}, {
+  body: t.Object({
+    accessToken: t.String(),
+    next_token: t.Optional(t.String()),
+    limit: t.Optional(t.Number()),
+  }),
+})
+
 // FEATURE AREA -----------------------------------------------------------
 app.post("/chat/create", async ({body}) => {
     return await CHATAPI.createChatSession(body.accessToken)
@@ -253,21 +270,6 @@ app.post("/chat/create", async ({body}) => {
   })  
 })
 
-app.post("/chats/list", async ({ body }) => {
-  return listChats(body as { accessToken: string });
-}, {
-  body: t.Object({ accessToken: t.String() }),
-})
-
-app.post("/chats/:chatId/history", async ({ params, body }) => {
-  return loadChatHistoryHandler(params.chatId, body as { accessToken: string; next_token?: string; limit?: number });
-}, {
-  body: t.Object({
-    accessToken: t.String(),
-    next_token: t.Optional(t.String()),
-    limit: t.Optional(t.Number()),
-  }),
-})
 // -----------------------------------------------------------------------
 
 
