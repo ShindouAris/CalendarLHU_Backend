@@ -81,14 +81,6 @@ export async function loadChatHistoryHandler(
       ? encodeNextToken(last.createdAt, last._id)
       : null;
 
-  const partsToText = (parts: unknown): string => {
-    if (!Array.isArray(parts)) return "";
-    return parts
-      .filter((p: any) => p && p.type === "text" && typeof p.text === "string")
-      .map((p: any) => p.text)
-      .join("");
-  };
-
   return {
     chatId: String(chat._id),
     chatUUID: (chat as any).chatID ?? (isMongoId ? null : chatId),
@@ -96,7 +88,6 @@ export async function loadChatHistoryHandler(
       id: String(m._id),
       role: m.role,
       parts: (m as any).parts ?? [],
-      content: partsToText((m as any).parts),
       createdAt: m.createdAt,
     })),
     next_token: next_token_out,

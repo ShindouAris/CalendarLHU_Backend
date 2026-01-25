@@ -253,7 +253,6 @@ app.post("/chat/create", async ({body}) => {
   })  
 })
 
-// Chats (MongoDB): list chats (accessToken), load history (accessToken + next_token)
 app.post("/chats/list", async ({ body }) => {
   return listChats(body as { accessToken: string });
 }, {
