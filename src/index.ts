@@ -8,9 +8,13 @@ import { MarkStudent } from "./controller/mark";
 import { LMSAPI } from "./controller/lms";
 import { CHATAPI } from "./controller/chat";
 import { automationTool } from "./controller/autoKhaoSat";
-import {chisaAIV2_Chat} from "./controller/ai";
+import { chisaAIV2_Chat, getToolsForFrontend } from "./controller/ai";
+import { createChat, persistMessages, getChatSummaries } from "./controller/chatApi";
+import { connectDB } from "./databases";
 
 const port = process.env.PORT || 3000
+
+await connectDB();
 
 const app = new Elysia()
         .use(cors({
@@ -233,14 +237,12 @@ app.post("/qa/fetch_pending", async ({body}) => {
 
 // ChisaAI Area -------------------------------------------
 
-app.post('chisaAI/v2/chat', async ({request}) => {
-    const req = await request.json()
+app.get("chisaAI/v2/tools", () => ({ tools: getToolsForFrontend() }));
 
-    return await chisaAIV2_Chat(req)
-
-}, {
-    parse: 'none'
-})
+app.post("chisaAI/v2/chat", async ({ request }) => {
+  const req = await request.json();
+  return await chisaAIV2_Chat(req);
+}, { parse: "none" });
 
 // FEATURE AREA -----------------------------------------------------------
 app.post("/chat/create", async ({body}) => {
@@ -249,6 +251,31 @@ app.post("/chat/create", async ({body}) => {
   body: t.Object({
     accessToken: t.String()
   })  
+})
+
+// Chats (MongoDB): create, persist messages, list summaries
+app.post("/chats", async ({ body }) => {
+  return createChat(body as { user_id: string });
+}, {
+  body: t.Object({ user_id: t.String() }),
+})
+
+app.post("/chats/:chatId/messages", async ({ params, body }) => {
+  return persistMessages(params.chatId, body as { user_id: string; messages: Array<{ role: "user" | "assistant" | "system" | "data"; content: string }> });
+}, {
+  body: t.Object({
+    user_id: t.String(),
+    messages: t.Array(t.Object({
+      role: t.Union([t.Literal("user"), t.Literal("assistant"), t.Literal("system"), t.Literal("data")]),
+      content: t.String(),
+    })),
+  }),
+})
+
+app.get("/chats/summaries", async ({ query }) => {
+  return getChatSummaries(query as { user_id: string });
+}, {
+  query: t.Object({ user_id: t.String() }),
 })
 // -----------------------------------------------------------------------
 

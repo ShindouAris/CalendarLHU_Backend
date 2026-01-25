@@ -2,7 +2,7 @@ import {getStudentScheduleTool, getNextClassTool, getExamScheduleTool} from "./A
 import dayjs from "dayjs";
 import { weatherCurrentTool, weatherForecastTool,weatherForecastDayTool} from "./AI_TOOLS_V1/weather";
 import {extractWebTool, searchWebTool} from "./AI_TOOLS_V1/web";
-import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway} from "ai";
+import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway, generateId} from "ai";
 
 import {LmsDiemDanhTool} from "./AI_TOOLS_V1/lms";
 import {  getElibThongSoTool,
@@ -17,6 +17,15 @@ import {UserResponse} from "../types/user";
 import {userApi} from "./AI_TOOLS_V1/user";
 import {encryptLoginData} from "../utils/encryptor";
 import {LRUCache} from "../utils/lruCache";
+import { UserModel } from "../databases/models/user";
+import {
+  getOrCreateChatForUser,
+  getChatForUser,
+  createChatForUser,
+} from "../databases/services/chatQueries";
+import { addToBuffer } from "../databases/services/messageBufferService";
+import type { MessageRole } from "../databases/models/message";
+import { Types } from "mongoose";
 
 const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
     return ` 
@@ -75,6 +84,14 @@ const tool_v2_for_chisa: ToolSet = {
     getElibThietBiForRegTool,
 }
 
+/** Tool metadata for frontend rendering (tool-call UI, etc.). */
+export function getToolsForFrontend(): { name: string; description: string }[] {
+  return Object.entries(tool_v2_for_chisa).map(([name, t]) => ({
+    name,
+    description: (t as { description?: string }).description ?? "",
+  }));
+}
+
 class Mutex {
   private locked = false;
   private queue: Array<() => void> = [];
@@ -107,7 +124,25 @@ class UserCache extends LRUCache<string, UserResponse> {
   async getUserData(userID: string) {
     await this.mutex.lock();
     try {
-      return this.get(userID);
+      const cachedUser = this.get(userID);
+      if (cachedUser) {
+        return cachedUser;
+      }
+
+      // Fallback to DB
+      try {
+        const dbUser = await UserModel.findOne({ UserID: userID }).lean();
+        if (dbUser) {
+            // When loading from DB, we only have partial data (UserID, FullName, Class, DepartmentName).
+            // Cast it to UserResponse carefully or ensure consumers handle missing fields.
+            const user = dbUser as unknown as UserResponse;
+            this.put(userID, user);
+            return user;
+        }
+      } catch (e) {
+          console.error("DB Fetch Error", e);
+      }
+      return null;
     } finally {
       this.mutex.unlock();
     }
@@ -117,6 +152,18 @@ class UserCache extends LRUCache<string, UserResponse> {
     await this.mutex.lock();
     try {
       this.put(userID, data);
+      // Sync to DB (Only save selected fields)
+      try {
+        const dbData = {
+            UserID: data.UserID,
+            FullName: data.FullName,
+            Class: data.Class,
+            DepartmentName: data.DepartmentName
+        };
+        await UserModel.findOneAndUpdate({ UserID: userID }, dbData, { upsert: true });
+      } catch(e) {
+        console.error("DB Save Error", e);
+      }
     } finally {
       this.mutex.unlock();
     }
@@ -136,7 +183,7 @@ export const chisaAIV2_Chat = async (req: any) => {
     const access_token = req['access_token']
 
     let sysPrompt;
-    const { messages }: { messages: UIMessage[] } = req;
+    const {id, messages }: {id: string, messages: UIMessage[] } = req;
 
     try {
         const precachedUser = await usercacheBuffer.getUserData(req['user_id'])
@@ -160,8 +207,57 @@ export const chisaAIV2_Chat = async (req: any) => {
         messages: await convertToModelMessages(messages),
         tools: tool_v2_for_chisa,
         stopWhen: stepCountIs(15),
-    })
-    return stream.toUIMessageStreamResponse()
+    });
+
+    return stream.toUIMessageStreamResponse({
+      originalMessages: messages,
+      generateMessageId: () => crypto.randomUUID(),
+      onFinish: async (msg) => {
+        const userId = req['user_id'] as string | undefined;
+        if (!userId) return;
+
+        try {
+          const allMessages = msg.messages;
+          const messagesToSave: Array<{ role: MessageRole; content: string }> = [];
+          const getTextFromParts = (parts: any[]) =>
+            parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('');
+
+          let assistantContent = "";
+          for (let i = allMessages.length - 1; i >= 0; i--) {
+            const m = allMessages[i];
+            if (m.role === 'assistant') {
+              if (!assistantContent) assistantContent = getTextFromParts(m.parts ?? []);
+              continue;
+            }
+            if (m.role === 'user') {
+              const content = getTextFromParts(m.parts ?? []);
+              if (content) messagesToSave.push({ role: 'user', content });
+              break;
+            }
+          }
+          if (assistantContent) messagesToSave.push({ role: 'assistant', content: assistantContent });
+
+          if (messagesToSave.length === 0) return;
+
+          let chat: { _id: unknown; user: Types.ObjectId } | null = null;
+          const chatId = req['id'] as string | undefined;
+          if (chatId && Types.ObjectId.isValid(chatId)) {
+            chat = await getChatForUser(new Types.ObjectId(chatId), userId);
+          }
+          if (!chat) {
+            chat = (await createChatForUser(userId)) as { _id: unknown; user: Types.ObjectId } | null;
+          }
+          if (!chat) {
+            chat = await getOrCreateChatForUser(userId) as { _id: unknown; user: Types.ObjectId } | null;
+          }
+          if (chat?._id && chat?.user) {
+            addToBuffer(chat._id as Types.ObjectId, chat.user, messagesToSave);
+          }
+        } catch (err) {
+          console.error("Failed to save chat history in toUIMessageStreamResponse", err);
+        }
+      },
+    });
 }
 
 export const checkAvailability = async () => {
