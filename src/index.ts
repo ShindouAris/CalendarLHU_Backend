@@ -11,6 +11,7 @@ import { automationTool } from "./controller/autoKhaoSat";
 import { chisaAIV2_Chat, getToolsForFrontend, getAvailableModels } from "./controller/ai";
 import { listChats, loadChatHistoryHandler } from "./controller/chatApi";
 import { connectDB } from "./databases";
+import { UserModel } from "./databases/models/user";
 
 const port = process.env.PORT || 3000
 
@@ -246,6 +247,64 @@ app.post("chisaAI/v2/chat", async ({ request }) => {
   return await chisaAIV2_Chat(req);
 }, { parse: "none" });
 
+app.post("/chisaAI/v3/user/check", async ({ body }) => {
+  try {
+    const userInfo = await userApi.userinfo(body.accessToken);
+    if (!userInfo || typeof userInfo !== "object" || !("UserID" in userInfo)) {
+      return status(401, { error: "Invalid or expired access token" });
+    }
+
+    const userId = (userInfo as { UserID: string }).UserID;
+    const user = await UserModel.findOne({ UserID: userId }).lean();
+
+    if (!user) {
+      return {
+        exists: false
+      };
+    }
+
+    return {
+      exists: true
+    };
+  } catch (error) {
+    console.error("Error checking user:", error);
+    return status(500, { error: "Internal server error" });
+  }
+}, {
+  body: t.Object({
+    accessToken: t.String()
+  })
+})
+
+app.post("/chisaAI/v3/user/create", async ({ body }) => {
+  try {
+
+    const userInfo = await userApi.userinfo(body.accessToken);
+    if (!userInfo || typeof userInfo !== "object" || !("UserID" in userInfo)) {
+      return status(401, { error: "Invalid or expired access token" });
+    }
+    const userID = (userInfo as any).UserID;
+    const exists = await UserModel.exists({ UserID: userID });
+    if (exists) return { message: "User already exists" };
+    
+    await UserModel.create({
+      UserID: (userInfo as { UserID: string }).UserID,
+      FullName: (userInfo as { FullName: string }).FullName || "Unknown",
+      Class: (userInfo as { Class: string }).Class || "",
+      DepartmentName: (userInfo as { DepartmentName: string }).DepartmentName || ""
+    })
+
+    return { message: "User created successfully" };
+
+  } catch (error) {
+    console.error("Error creating user:", error);
+    return status(500);
+  }
+}, {
+  body: t.Object({
+    accessToken: t.String()
+  })
+})
 
 app.post("/chisaAI/v2/list", async ({ body }) => {
   return listChats(body as { accessToken: string; next_token?: string; limit?: number });
