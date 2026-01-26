@@ -67,6 +67,29 @@ const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
       `
 }
 
+const AVAILABLE_MODELS = [
+  "deepseek/deepseek-v3.2",
+  "openai/gpt-4o-mini",
+  "openai/gpt-5-nano",
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-2.0-flash",
+  "alibaba/qwen-3-235b",
+  "alibaba/qwen-3-14b"
+]
+
+const MODEL_NAME_MAPPING: Record<string, string> = {
+  "ChisaAI v3.2": "deepseek/deepseek-v3.2", // $0.40/M
+  "ChisaAI Mini": "openai/gpt-4o-mini", // $0.60/M
+  "ChisaAI Nano": "openai/gpt-5-nano", // $0.40/M
+  "ChisaAI Flash Lite": "google/gemini-2.5-flash-lite", // $0.40/M
+  "ChisaAI Flash": "google/gemini-2.0-flash", // $0.40/M
+  "ChisaAI Qwen": "alibaba/qwen-3-235b", // $0.46/M
+  "ChisaAI Small": "alibaba/qwen-3-14b" // $0.18/M
+}
+
+const REVERSE_MODEL_MAPPING: Record<string, string> = Object.fromEntries(
+  Object.entries(MODEL_NAME_MAPPING).map(([k, v]) => [v, k])
+)
 const tool_v2_for_chisa: ToolSet = {
     searchWebTool,
     extractWebTool,
@@ -90,6 +113,15 @@ export function getToolsForFrontend(): { name: string; description: string }[] {
   return Object.entries(tool_v2_for_chisa).map(([name, t]) => ({
     name,
     description: (t as { description?: string }).description ?? "",
+  }));
+}
+
+/** Get available models with safe display names */
+export function getAvailableModels(): { safeName: string; modelId: string; isDefault: boolean }[] {
+  return Object.entries(MODEL_NAME_MAPPING).map(([safeName, modelId]) => ({
+    safeName,
+    modelId,
+    isDefault: modelId === "deepseek/deepseek-v3.2"
   }));
 }
 
@@ -182,6 +214,19 @@ export const chisaAIV2_Chat = async (req: any) => {
     }
 
     const access_token = req['access_token']
+    const selectedModel = req['model'] as string | undefined;
+
+    // Only accept safe names, no direct model IDs allowed
+    let modelToUse = "deepseek/deepseek-v3.2"; // Default
+    if (selectedModel) {
+      const mappedModel = MODEL_NAME_MAPPING[selectedModel];
+      if (mappedModel) {
+        modelToUse = mappedModel;
+      } else {
+        // Invalid model name, use default but log warning
+        console.warn(`Invalid model name provided: ${selectedModel}. Using default.`);
+      }
+    }
 
     let sysPrompt;
     const {id, messages }: {id: string, messages: UIMessage[] } = req;
@@ -204,7 +249,7 @@ export const chisaAIV2_Chat = async (req: any) => {
 
 
     const stream = streamText({
-        model: 'deepseek/deepseek-v3.2',
+        model: modelToUse,
         system: sysPrompt,
         messages: await convertToModelMessages(messages),
         tools: tool_v2_for_chisa,

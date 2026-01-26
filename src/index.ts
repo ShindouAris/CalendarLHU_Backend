@@ -8,7 +8,7 @@ import { MarkStudent } from "./controller/mark";
 import { LMSAPI } from "./controller/lms";
 import { CHATAPI } from "./controller/chat";
 import { automationTool } from "./controller/autoKhaoSat";
-import { chisaAIV2_Chat, getToolsForFrontend } from "./controller/ai";
+import { chisaAIV2_Chat, getToolsForFrontend, getAvailableModels } from "./controller/ai";
 import { listChats, loadChatHistoryHandler } from "./controller/chatApi";
 import { connectDB } from "./databases";
 
@@ -238,6 +238,8 @@ app.post("/qa/fetch_pending", async ({body}) => {
 // ChisaAI Area -------------------------------------------
 
 app.get("chisaAI/v2/tools", () => ({ tools: getToolsForFrontend() }));
+
+app.get("chisaAI/v2/models", () => ({ models: getAvailableModels() }));
 
 app.post("chisaAI/v2/chat", async ({ request }) => {
   const req = await request.json();
