@@ -6,7 +6,8 @@
     "dev": "bun run --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
-    "health-check": "curl -f http://localhost:3000/ || exit 1"
+    "health-check": "curl -f http://localhost:3000/ || exit 1",
+    "deploy": "bun run build && bun run start"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.3.3",
