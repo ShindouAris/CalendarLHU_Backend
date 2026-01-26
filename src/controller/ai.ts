@@ -315,8 +315,8 @@ export const chisaAIV2_Chat = async (req: any) => {
             }
           }
           if (!chat) {
-            console.log('[onFinish] No chat found by chatId, try createChatForUser with userId:', userId);
-            chat = (await createChatForUser(userId)) as { _id: unknown; user: Types.ObjectId } | null;
+            console.log('[onFinish] No chat found by chatId, try createChatForUser with userId:', userId, 'chatId:', chatId);
+            chat = (await createChatForUser(userId, chatId)) as { _id: unknown; user: Types.ObjectId } | null;
           }
           if (!chat) {
             console.log('[onFinish] No chat created, try getOrCreateChatForUser with userId:', userId);

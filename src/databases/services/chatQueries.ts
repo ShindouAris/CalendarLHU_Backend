@@ -29,10 +29,13 @@ export async function getOrCreateChatForUser(userId: string) {
 }
 
 /** Create a new chat for user by UserID (string). */
-export async function createChatForUser(userId: string) {
+export async function createChatForUser(userId: string, chatID?: string) {
   const user = await UserModel.findOne({ UserID: userId }).lean();
   if (!user) return null;
-  const created = await ChatModel.create({ user: user._id });
+  const created = await ChatModel.create({ 
+    user: user._id,
+    ...(chatID && { chatID })
+  });
   return created.toObject ? created.toObject() : created;
 }
 
