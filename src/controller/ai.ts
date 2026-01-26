@@ -121,7 +121,7 @@ export function getAvailableModels(): { safeName: string; modelId: string; isDef
   return Object.entries(MODEL_NAME_MAPPING).map(([safeName, modelId]) => ({
     safeName,
     modelId,
-    isDefault: modelId === "deepseek/deepseek-v3.2"
+    isDefault: modelId === "openai/gpt-4o-mini"
   }));
 }
 
@@ -217,7 +217,7 @@ export const chisaAIV2_Chat = async (req: any) => {
     const selectedModel = req['model'] as string | undefined;
 
     // Only accept safe names, no direct model IDs allowed
-    let modelToUse = "deepseek/deepseek-v3.2"; // Default
+    let modelToUse = "openai/gpt-4o-mini"; // Default
     if (selectedModel) {
       const mappedModel = MODEL_NAME_MAPPING[selectedModel];
       if (mappedModel) {
