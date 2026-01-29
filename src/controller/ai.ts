@@ -70,21 +70,17 @@ const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
 const AVAILABLE_MODELS = [
   "deepseek/deepseek-v3.2",
   "openai/gpt-4o-mini",
-  "openai/gpt-5-nano",
-  "google/gemini-2.5-flash-lite",
-  "google/gemini-2.0-flash",
   "alibaba/qwen-3-235b",
-  "alibaba/qwen-3-14b"
+  "alibaba/qwen-3-14b",
+  "minimax/minimax-m2"
 ]
 
 const MODEL_NAME_MAPPING: Record<string, string> = {
-  "ChisaAI v3.2": "deepseek/deepseek-v3.2", // $0.40/M
-  "ChisaAI Mini": "openai/gpt-4o-mini", // $0.60/M
-  "ChisaAI Nano": "openai/gpt-5-nano", // $0.40/M
-  "ChisaAI Flash Lite": "google/gemini-2.5-flash-lite", // $0.40/M
-  "ChisaAI Flash": "google/gemini-2.0-flash", // $0.40/M
+  "ChisaAI Giỏi nấu ăn": "deepseek/deepseek-v3.2", // $0.40/M
+  "ChisaAI v2": "openai/gpt-4o-mini", // $0.60/M
   "ChisaAI Qwen": "alibaba/qwen-3-235b", // $0.46/M
-  "ChisaAI Small": "alibaba/qwen-3-14b" // $0.18/M
+  "ChisaAI Tiết kiệm": "alibaba/qwen-3-14b", // $0.18/M
+  "ChisaAI Giỏi code": "minimax/minimax-m2" // $1.15/M
 }
 
 const REVERSE_MODEL_MAPPING: Record<string, string> = Object.fromEntries(
