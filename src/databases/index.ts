@@ -6,7 +6,12 @@ const MONGO_URI = process.env.DATABASE_URL || "mongodb://localhost:27017/lhu-das
 
 export const connectDB = async () => {
   try {
-    await mongoose.connect(MONGO_URI);
+    await mongoose.connect(MONGO_URI, {
+      maxPoolSize: 10,        // Maximum 10 connections in pool
+      minPoolSize: 2,         // Keep at least 2 connections alive
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s if server not found
+    });
     console.log("🆗 MongoDB connected successfully");
 
     // Backward-compat cleanup: older versions created a unique index on Message.chatID.

@@ -34,6 +34,31 @@ export function validateNonce(nonce: string) {
     return true;
 }
 
+// Periodic cleanup for expired nonces (prevent memory leak)
+function cleanupExpiredNonces() {
+    const now = Date.now();
+    let cleanedCount = 0;
+    for (const [nonce, expiredAt] of nonceStore.entries()) {
+        if (expiredAt < now) {
+            nonceStore.delete(nonce);
+            cleanedCount++;
+        }
+    }
+    if (cleanedCount > 0) {
+        console.log(`[NonceStore] Cleaned up ${cleanedCount} expired nonces. Current size: ${nonceStore.size}`);
+    }
+}
+
+// Run cleanup every 5 minutes
+const NONCE_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const nonceCleanupTimer = setInterval(cleanupExpiredNonces, NONCE_CLEANUP_INTERVAL);
+
+// Export cleanup timer for graceful shutdown
+export function stopNonceCleanup() {
+    clearInterval(nonceCleanupTimer);
+    console.log("[NonceStore] Cleanup timer stopped");
+}
+
 
 export const userApi = {
     login: async (idSinhVien: string, password: string, idLoginDevice: string, cf_verify_token: string, requestip?: string): Promise<loginRes | any> => {

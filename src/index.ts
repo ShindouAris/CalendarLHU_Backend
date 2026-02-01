@@ -12,6 +12,8 @@ import { chisaAIV2_Chat, getToolsForFrontend, getAvailableModels } from "./contr
 import { listChats, loadChatHistoryHandler } from "./controller/chatApi";
 import { connectDB } from "./databases";
 import { UserModel } from "./databases/models/user";
+import { stopNonceCleanup } from "./controller/user";
+import mongoose from "mongoose";
 
 const port = process.env.PORT || 3000
 
@@ -343,3 +345,42 @@ app.get("/", () => "Hello Elysia")
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
 );
+
+// Graceful shutdown handlers
+async function gracefulShutdown(signal: string) {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+  
+  try {
+    // Stop nonce cleanup timer
+    stopNonceCleanup();
+    
+    // Close MongoDB connection
+    await mongoose.connection.close();
+    console.log("✅ MongoDB connection closed");
+    
+    // Stop Elysia server
+    await app.stop();
+    console.log("✅ Server stopped");
+    
+    console.log("👋 Graceful shutdown completed");
+    process.exit(0);
+  } catch (error) {
+    console.error("❌ Error during shutdown:", error);
+    process.exit(1);
+  }
+}
+
+// Handle shutdown signals
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Handle uncaught errors
+process.on("uncaughtException", (error) => {
+  console.error("💥 Uncaught Exception:", error);
+  gracefulShutdown("UNCAUGHT_EXCEPTION");
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("💥 Unhandled Rejection at:", promise, "reason:", reason);
+  gracefulShutdown("UNHANDLED_REJECTION");
+});

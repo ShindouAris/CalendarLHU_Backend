@@ -64,6 +64,8 @@ async function flush(chatId: string): Promise<void> {
         clearTimeout(entry.timer);
         buffers.delete(chatId);
       }
+      // Cleanup mutex if no pending operations
+      mutexes.delete(chatId);
       return;
     }
     const { messages, userObjectId } = entry;
@@ -78,6 +80,8 @@ async function flush(chatId: string): Promise<void> {
     console.error("[messageBufferService] flush error:", err);
   } finally {
     m.unlock();
+    // Cleanup mutex after flush completes
+    mutexes.delete(chatId);
   }
 }
 

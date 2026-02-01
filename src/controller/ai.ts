@@ -146,7 +146,7 @@ class Mutex {
 
 class UserCache extends LRUCache<string, UserResponse> {
     constructor() {
-        super(500, 7200); // Cache up to 500 users, expire after 120 minutes
+        super(250, 3600); // Cache up to 250 users, expire after 60 minutes (reduced from 500/120min)
     }
   private mutex = new Mutex();
 
