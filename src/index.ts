@@ -33,7 +33,6 @@ const app = new Elysia()
           withBanner: true,
           withTimestamp: true
         }))
-        .listen(port);
 
 
 // Schedule AREA ------------------------------------------------------------
@@ -343,7 +342,7 @@ app.post("/chat/create", async ({body}) => {
 
 app.get("/", () => "Hello Elysia")
 setupMemoryEndpoint(app);
-
+app.listen(port);
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
 );
