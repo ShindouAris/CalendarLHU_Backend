@@ -14,6 +14,7 @@ import { connectDB } from "./databases";
 import { UserModel } from "./databases/models/user";
 import { stopNonceCleanup } from "./controller/user";
 import mongoose from "mongoose";
+import { setupMemoryEndpoint } from "./utils/memoryMonitor";
 
 const port = process.env.PORT || 3000
 
@@ -341,6 +342,7 @@ app.post("/chat/create", async ({body}) => {
 
 
 app.get("/", () => "Hello Elysia")
+setupMemoryEndpoint(app);
 
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
