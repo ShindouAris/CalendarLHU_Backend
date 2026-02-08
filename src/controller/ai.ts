@@ -17,7 +17,7 @@ import {UserResponse} from "../types/user";
 import {userApi} from "./AI_TOOLS_V1/user";
 import {encryptLoginData} from "../utils/encryptor";
 import {LRUCache} from "../utils/lruCache";
-import { UserModel } from "../databases/models/user";
+import { prisma } from "../databases";
 import {
   getOrCreateChatForUser,
   getChatForUser,
@@ -25,8 +25,7 @@ import {
   createChatForUser,
 } from "../databases/services/chatQueries";
 import { addToBuffer } from "../databases/services/messageBufferService";
-import type { MessageRole } from "../databases/models/message";
-import { Types } from "mongoose";
+import { MessageRole } from "@prisma/client";
 
 const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
     return ` 
@@ -160,11 +159,18 @@ class UserCache extends LRUCache<string, UserResponse> {
 
       // Fallback to DB
       try {
-        const dbUser = await UserModel.findOne({ UserID: userID }).lean();
+        const dbUser = await prisma.user.findUnique({
+          where: { userID },
+        });
         if (dbUser) {
-            // When loading from DB, we only have partial data (UserID, FullName, Class, DepartmentName).
+            // When loading from DB, we only have partial data (userID, fullName, class, departmentName).
             // Cast it to UserResponse carefully or ensure consumers handle missing fields.
-            const user = dbUser as unknown as UserResponse;
+            const user = {
+              UserID: dbUser.userID,
+              FullName: dbUser.fullName,
+              Class: dbUser.class,
+              DepartmentName: dbUser.departmentName,
+            } as unknown as UserResponse;
             this.put(userID, user);
             return user;
         }
@@ -184,12 +190,16 @@ class UserCache extends LRUCache<string, UserResponse> {
       // Sync to DB (Only save selected fields)
       try {
         const dbData = {
-            UserID: data.UserID,
-            FullName: data.FullName,
-            Class: data.Class,
-            DepartmentName: data.DepartmentName
+            userID: data.UserID,
+            fullName: data.FullName,
+            class: data.Class,
+            departmentName: data.DepartmentName
         };
-        await UserModel.findOneAndUpdate({ UserID: userID }, dbData, { upsert: true });
+        await prisma.user.upsert({
+          where: { userID },
+          update: dbData,
+          create: dbData,
+        });
       } catch(e) {
         console.error("DB Save Error", e);
       }
@@ -299,28 +309,30 @@ export const chisaAIV2_Chat = async (req: any) => {
             return;
           }
 
-          let chat: { _id: unknown; user: Types.ObjectId } | null = null;
+          let chat: { id: string; userId: string } | null = null;
           const chatId = req['id'] as string | undefined;
           if (chatId) {
-            if (Types.ObjectId.isValid(chatId)) {
-              console.log('[onFinish] Try getChatForUser with mongo chatId:', chatId, 'userId:', userId);
-              chat = await getChatForUser(new Types.ObjectId(chatId), userId);
-            } else {
-              console.log('[onFinish] Try getChatForUserByUUID with chatUUID:', chatId, 'userId:', userId);
-              chat = await getChatForUserByUUID(chatId, userId);
+            // Try UUID format first (chatID field)
+            console.log('[onFinish] Try getChatForUserByUUID with chatUUID:', chatId, 'userId:', userId);
+            chat = await getChatForUserByUUID(chatId, userId);
+            
+            if (!chat) {
+              // Try as primary key id
+              console.log('[onFinish] Try getChatForUser with chatId:', chatId, 'userId:', userId);
+              chat = await getChatForUser(chatId, userId);
             }
           }
           if (!chat) {
             console.log('[onFinish] No chat found by chatId, try createChatForUser with userId:', userId, 'chatId:', chatId);
-            chat = (await createChatForUser(userId, chatId)) as { _id: unknown; user: Types.ObjectId } | null;
+            chat = await createChatForUser(userId, chatId);
           }
           if (!chat) {
             console.log('[onFinish] No chat created, try getOrCreateChatForUser with userId:', userId);
-            chat = await getOrCreateChatForUser(userId) as { _id: unknown; user: Types.ObjectId } | null;
+            chat = await getOrCreateChatForUser(userId);
           }
-          if (chat?._id && chat?.user) {
-            console.log('[onFinish] Adding to buffer chatId:', chat._id, 'user:', chat.user, 'messagesToSave:', messagesToSave);
-            addToBuffer(chat._id as Types.ObjectId, chat.user, messagesToSave);
+          if (chat?.id && chat?.userId) {
+            console.log('[onFinish] Adding to buffer chatId:', chat.id, 'userId:', chat.userId, 'messagesToSave:', messagesToSave);
+            addToBuffer(chat.id, chat.userId, messagesToSave);
           } else {
             console.log('[onFinish] Unable to resolve chat for saving history. chat:', chat);
           }

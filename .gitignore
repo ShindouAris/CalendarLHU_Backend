@@ -44,3 +44,4 @@ package-lock.json
 dist/
 .idea/
 .cursor/
+/src/generated/prisma

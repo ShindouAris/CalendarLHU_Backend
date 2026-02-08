@@ -1,10 +1,9 @@
-import { Types } from "mongoose";
 import {
   bulkInsertMessages,
   updateChatUpdatedAt,
   pruneChatsForUser,
 } from "./chatQueries";
-import type { MessageRole } from "../models/message";
+import { MessageRole } from "@prisma/client";
 import { UIMessagePart } from "ai";
 
 const DEBOUNCE_MS = 750;
@@ -17,7 +16,7 @@ interface BufferedMessage {
 
 interface BufferEntry {
   messages: BufferedMessage[];
-  userObjectId: Types.ObjectId;
+  userId: string;
   timer: ReturnType<typeof setTimeout>;
 }
 
@@ -68,14 +67,13 @@ async function flush(chatId: string): Promise<void> {
       mutexes.delete(chatId);
       return;
     }
-    const { messages, userObjectId } = entry;
+    const { messages, userId } = entry;
     clearTimeout(entry.timer);
     buffers.delete(chatId);
 
-    const cid = new Types.ObjectId(chatId);
-    await bulkInsertMessages(cid, messages);
-    await updateChatUpdatedAt(cid);
-    await pruneChatsForUser(userObjectId, MAX_CHATS_PER_USER);
+    await bulkInsertMessages(chatId, messages);
+    await updateChatUpdatedAt(chatId);
+    await pruneChatsForUser(userId, MAX_CHATS_PER_USER);
   } catch (err) {
     console.error("[messageBufferService] flush error:", err);
   } finally {
@@ -91,21 +89,21 @@ async function flush(chatId: string): Promise<void> {
  * Safe under concurrent requests (mutex per chatId).
  */
 export function addToBuffer(
-  chatId: Types.ObjectId,
-  userObjectId: Types.ObjectId,
+  chatId: string,
+  userId: string,
   messages: BufferedMessage[]
 ): void {
   if (messages.length === 0) return;
-  const key = String(chatId);
+  const key = chatId;
   let entry = buffers.get(key);
   if (entry) {
     clearTimeout(entry.timer);
     entry.messages.push(...messages);
-    entry.userObjectId = userObjectId;
+    entry.userId = userId;
   } else {
     entry = {
       messages: [...messages],
-      userObjectId,
+      userId,
       timer: null!,
     };
     buffers.set(key, entry);
@@ -116,13 +114,14 @@ export function addToBuffer(
 /**
  * Flush immediately (e.g. for sync persist API). Waits for flush to complete.
  */
-export async function flushNow(chatId: Types.ObjectId): Promise<void> {
-  const entry = buffers.get(String(chatId));
+export async function flushNow(chatId: string): Promise<void> {
+  const entry = buffers.get(chatId);
   if (entry) clearTimeout(entry.timer);
-  await flush(String(chatId));
+  await flush(chatId);
 }
 
 export const messageBufferConfig = {
   debounceMs: DEBOUNCE_MS,
   maxChatsPerUser: MAX_CHATS_PER_USER,
 };
+

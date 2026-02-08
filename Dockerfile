@@ -10,6 +10,12 @@ COPY package.json bun.lock ./
 # Install dependencies
 RUN bun install --frozen-lockfile
 
+# Copy prisma schema
+COPY prisma ./prisma
+
+# Generate Prisma client
+RUN bunx prisma generate
+
 # Copy source code
 COPY . .
 
@@ -28,6 +34,10 @@ WORKDIR /app
 # Copy package files and install production dependencies
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
+
+# Copy prisma schema and generate client
+COPY prisma ./prisma
+RUN bunx prisma generate
 
 # Copy built application or source code
 COPY --from=build /app/src ./src

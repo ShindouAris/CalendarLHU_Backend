@@ -10,10 +10,8 @@ import { CHATAPI } from "./controller/chat";
 import { automationTool } from "./controller/autoKhaoSat";
 import { chisaAIV2_Chat, getToolsForFrontend, getAvailableModels } from "./controller/ai";
 import { listChats, loadChatHistoryHandler } from "./controller/chatApi";
-import { connectDB } from "./databases";
-import { UserModel } from "./databases/models/user";
+import { connectDB, closeDB, prisma } from "./databases";
 import { stopNonceCleanup } from "./controller/user";
-import mongoose from "mongoose";
 import { setupMemoryEndpoint } from "./utils/memoryMonitor";
 
 const port = process.env.PORT || 3000
@@ -257,7 +255,9 @@ app.post("/chisaAI/v3/user/check", async ({ body }) => {
     }
 
     const userId = (userInfo as { UserID: string }).UserID;
-    const user = await UserModel.findOne({ UserID: userId }).lean();
+    const user = await prisma.user.findUnique({
+      where: { userID: userId },
+    });
 
     if (!user) {
       return {
@@ -286,14 +286,18 @@ app.post("/chisaAI/v3/user/create", async ({ body }) => {
       return status(401, { error: "Invalid or expired access token" });
     }
     const userID = (userInfo as any).UserID;
-    const exists = await UserModel.exists({ UserID: userID });
+    const exists = await prisma.user.findUnique({
+      where: { userID: userID },
+    });
     if (exists) return { message: "User already exists" };
     
-    await UserModel.create({
-      UserID: (userInfo as { UserID: string }).UserID,
-      FullName: (userInfo as { FullName: string }).FullName || "Unknown",
-      Class: (userInfo as { Class: string }).Class || "",
-      DepartmentName: (userInfo as { DepartmentName: string }).DepartmentName || ""
+    await prisma.user.create({
+      data: {
+        userID: (userInfo as { UserID: string }).UserID,
+        fullName: (userInfo as { FullName: string }).FullName || "Unknown",
+        class: (userInfo as { Class: string }).Class || "",
+        departmentName: (userInfo as { DepartmentName: string }).DepartmentName || ""
+      }
     })
 
     return { message: "User created successfully" };
@@ -355,9 +359,8 @@ async function gracefulShutdown(signal: string) {
     // Stop nonce cleanup timer
     stopNonceCleanup();
     
-    // Close MongoDB connection
-    await mongoose.connection.close();
-    console.log("✅ MongoDB connection closed");
+    // Close PostgreSQL connection
+    await closeDB();
     
     // Stop Elysia server
     await app.stop();

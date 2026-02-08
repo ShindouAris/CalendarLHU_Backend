@@ -1,5 +1,4 @@
 import { status } from "elysia";
-import { Types } from "mongoose";
 import { userApi } from "./user";
 import {
   getChatForUser,
@@ -9,37 +8,37 @@ import {
   type ChatSummary,
 } from "../databases/services/chatQueries";
 
-function encodeNextToken(createdAt: Date, _id: Types.ObjectId): string {
-  const payload = { t: createdAt.getTime(), id: String(_id) };
+function encodeNextToken(createdAt: Date, id: string): string {
+  const payload = { t: createdAt.getTime(), id };
   return Buffer.from(JSON.stringify(payload), "utf-8").toString("base64url");
 }
 
 function decodeNextToken(
   token: string
-): { createdAt: Date; _id: Types.ObjectId } | null {
+): { createdAt: Date; id: string } | null {
   try {
     const raw = Buffer.from(token, "base64url").toString("utf-8");
     const { t, id } = JSON.parse(raw) as { t: number; id: string };
     if (typeof t !== "number" || !id) return null;
-    return { createdAt: new Date(t), _id: new Types.ObjectId(id) };
+    return { createdAt: new Date(t), id };
   } catch {
     return null;
   }
 }
 
-function encodeChatListToken(updatedAt: Date, _id: Types.ObjectId): string {
-  const payload = { t: updatedAt.getTime(), id: String(_id) };
+function encodeChatListToken(updatedAt: Date, id: string): string {
+  const payload = { t: updatedAt.getTime(), id };
   return Buffer.from(JSON.stringify(payload), "utf-8").toString("base64url");
 }
 
 function decodeChatListToken(
   token: string
-): { updatedAt: Date; _id: Types.ObjectId } | null {
+): { updatedAt: Date; id: string } | null {
   try {
     const raw = Buffer.from(token, "base64url").toString("utf-8");
     const { t, id } = JSON.parse(raw) as { t: number; id: string };
     if (typeof t !== "number" || !id) return null;
-    return { updatedAt: new Date(t), _id: new Types.ObjectId(id) };
+    return { updatedAt: new Date(t), id };
   } catch {
     return null;
   }
@@ -62,7 +61,7 @@ export async function listChats(body: {
   const userId = await resolveUserFromToken(accessToken);
   if (!userId) return status(401, { error: "Invalid or expired token" });
 
-  let after: { updatedAt: Date; _id: Types.ObjectId } | undefined;
+  let after: { updatedAt: Date; id: string } | undefined;
   if (next_token) {
     const decoded = decodeChatListToken(next_token);
     if (!decoded) return status(400, { error: "Invalid next_token" });
@@ -75,7 +74,7 @@ export async function listChats(body: {
   });
 
   const next_token_out = page.next
-    ? encodeChatListToken(page.next.updatedAt, page.next._id)
+    ? encodeChatListToken(page.next.updatedAt, page.next.id)
     : null;
 
   return { chats: page.chats as ChatSummary[], next_token: next_token_out };
@@ -92,39 +91,39 @@ export async function loadChatHistoryHandler(
   const userId = await resolveUserFromToken(accessToken);
   if (!userId) return status(401, { error: "Invalid or expired token" });
 
-  // Support both Mongo ObjectId and UUID chatID from frontend.
-  const isMongoId = Types.ObjectId.isValid(chatId);
-  const chat = isMongoId
-    ? await getChatForUser(new Types.ObjectId(chatId), userId)
-    : await getChatForUserByUUID(chatId, userId);
+  // Try UUID chatID first, then fall back to primary key id
+  let chat = await getChatForUserByUUID(chatId, userId);
+  if (!chat) {
+    chat = await getChatForUser(chatId, userId);
+  }
   if (!chat) return status(404, { error: "Chat not found or access denied" });
 
-  let before: { createdAt: Date; _id: Types.ObjectId } | undefined;
+  let before: { createdAt: Date; id: string } | undefined;
   if (next_token) {
     const decoded = decodeNextToken(next_token);
     if (!decoded) return status(400, { error: "Invalid next_token" });
     before = decoded;
   }
   const messages = await loadChatHistory({
-    chatId: chat._id,
+    chatId: chat.id,
     limit,
     before,
   });
 
   // messages are newest -> oldest, so the last item is the oldest in this page
   const last = messages[messages.length - 1] as
-    | { createdAt: Date; _id: Types.ObjectId }
+    | { createdAt: Date; id: string }
     | undefined;
   const next_token_out =
     messages.length >= limit && last
-      ? encodeNextToken(last.createdAt, last._id)
+      ? encodeNextToken(last.createdAt, last.id)
       : null;
 
   return {
-    chatId: String(chat._id),
-    chatUUID: (chat as any).chatID ?? (isMongoId ? null : chatId),
+    chatId: chat.id,
+    chatUUID: (chat as any).chatID ?? chatId,
     messages: messages.map((m) => ({
-      id: String(m._id),
+      id: m.id,
       role: m.role,
       parts: (m as any).parts ?? [],
       createdAt: m.createdAt,
