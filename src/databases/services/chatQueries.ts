@@ -95,11 +95,11 @@ export async function loadChatHistory(options: LoadHistoryOptions) {
 
   const messages = await prisma.message.findMany({
     where: whereClause,
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit,
   });
 
-  // Return oldest → newest (chronological order)
+  // Return newest → oldest (for pagination), caller should reverse for chronological display
   return messages;
 }
 
