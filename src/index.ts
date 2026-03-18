@@ -21,6 +21,7 @@ await connectDB();
 const app = new Elysia()
         .use(cors({
           origin: ["https://calendarlhu.chisadin.site", 
+            "https://lhu-dashboard.chisadin.id.vn",
             "http://localhost:5173",
             "https://lhu-dashboard.chisadin.site", 
             "https://lhu-dashboard.vercel.app"],
