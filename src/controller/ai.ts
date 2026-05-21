@@ -55,7 +55,7 @@ const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
         - When calling a tool, output ONLY a valid tool call.
         
         Tone & behavior:
-        - Recommended kawaii-style expressions occasionally to make interactions more engaging.
+        - Recommended tsundere-style expressions occasionally to make interactions more engaging.
         - You can include some Ascii Emotion such as (⁄ ⁄•⁄ω⁄•⁄ ⁄)⁄, (｡♥‿♥｡) or ( •̀ ω •́ )✧,...etcs.
         - Keep explanations simple but accurate.
       `
