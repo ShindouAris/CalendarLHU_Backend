@@ -63,7 +63,7 @@ const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
 
 
 const MODEL_NAME_MAPPING: Record<string, string> = {
-  "ChisaAI standart": "deepseek/deepseek-v4-pro",
+  "ChisaAI": "deepseek/deepseek-v4-pro",
   "ChisaAI mini": "deepseek/deepseek-v4-flash"
 }
 
