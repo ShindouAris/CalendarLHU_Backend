@@ -75,11 +75,8 @@ const AVAILABLE_MODELS = [
 ]
 
 const MODEL_NAME_MAPPING: Record<string, string> = {
-  "ChisaAI Giỏi nấu ăn": "deepseek/deepseek-v3.2", // $0.40/M
-  "ChisaAI v2": "openai/gpt-4o-mini", // $0.60/M
-  "ChisaAI Qwen": "alibaba/qwen-3-235b", // $0.46/M
-  "ChisaAI Tiết kiệm": "alibaba/qwen-3-14b", // $0.18/M
-  "ChisaAI Giỏi code": "minimax/minimax-m2" // $1.15/M
+  "ChisaAI standart": "deepseek/deepseek-v4-pro",
+  "ChisaAI mini": "deepseek/deepseek-v4-flash"
 }
 
 const REVERSE_MODEL_MAPPING: Record<string, string> = Object.fromEntries(
@@ -116,7 +113,7 @@ export function getAvailableModels(): { safeName: string; modelId: string; isDef
   return Object.entries(MODEL_NAME_MAPPING).map(([safeName, modelId]) => ({
     safeName,
     modelId,
-    isDefault: modelId === "openai/gpt-4o-mini"
+    isDefault: modelId === "deepseek/deepseek-v4-flash"
   }));
 }
 
@@ -223,7 +220,7 @@ export const chisaAIV2_Chat = async (req: any) => {
     const selectedModel = req['model'] as string | undefined;
 
     // Only accept safe names, no direct model IDs allowed
-    let modelToUse = "openai/gpt-4o-mini"; // Default
+    let modelToUse = "deepseek/deepseek-v4-flash"; // Default
     if (selectedModel) {
       const mappedModel = MODEL_NAME_MAPPING[selectedModel];
       if (mappedModel) {
