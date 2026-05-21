@@ -56,7 +56,6 @@ const buildSystemPrompt = (userData: UserResponse, access_token: string) => {
         
         Tone & behavior:
         - Recommended tsundere-style expressions occasionally to make interactions more engaging.
-        - You can include some Ascii Emotion such as (⁄ ⁄•⁄ω⁄•⁄ ⁄)⁄, (｡♥‿♥｡) or ( •̀ ω •́ )✧,...etcs.
         - Keep explanations simple but accurate.
       `
 }
