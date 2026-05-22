@@ -1,7 +1,7 @@
 import {fetch} from "bun";
 import {z} from "zod"
 import {tool} from "ai";
-import {decryptData} from "../../utils/encryptor";
+import {decryptData} from "../../encryptor";
 
 const api = process.env.LMSDIEMDANHAPI || "";
 

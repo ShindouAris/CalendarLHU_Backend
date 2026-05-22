@@ -1,5 +1,5 @@
 import { fetch } from 'bun'
-import { HourForecast, WeatherCurrentAPIResponse, WeatherForeCastAPIResponse} from '../../types/weather'
+import { HourForecast, WeatherCurrentAPIResponse, WeatherForeCastAPIResponse} from '../../../types/weather'
 import {tool} from "ai";
 import {z} from "zod";
 

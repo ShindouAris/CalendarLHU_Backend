@@ -1,5 +1,5 @@
 import {fetch} from "bun";
-import {UserInfoResponse} from "../../types/user";
+import {UserInfoResponse} from "../../../types/user";
 
 const userinfo = process.env.USERINFO || ""
 

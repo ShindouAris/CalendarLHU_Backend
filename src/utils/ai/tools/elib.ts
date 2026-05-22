@@ -6,10 +6,10 @@ import {
     DangKyPayload,
     LichCaNhanAPIResponse,
     ThongSo
-} from "../../types/elib"
+} from "../../../types/elib"
 import {tool} from "ai"
 import {z} from "zod"
-import {decryptData} from "../../utils/encryptor";
+import {decryptData} from "../../encryptor";
 
 const TAPI = process.env.TAPI
 

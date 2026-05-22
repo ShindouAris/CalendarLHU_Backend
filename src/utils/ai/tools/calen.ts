@@ -1,6 +1,6 @@
 import {fetch} from "bun";
 import {isAfter, parseISO} from "date-fns";
-import type {ApiResponse, ScheduleItem} from "../../types/schedule";
+import type {ApiResponse, ScheduleItem} from "../../../types/schedule";
 import {tool} from "ai";
 import {z} from "zod";
 
