@@ -2,7 +2,7 @@ import {getStudentScheduleTool, getNextClassTool, getExamScheduleTool} from "../
 import { weatherCurrentTool, weatherForecastTool,weatherForecastDayTool} from "../utils/ai/tools/weather";
 import {extractWebTool, searchWebTool} from "../utils/ai/tools/web";
 import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway, generateId, UIMessagePart} from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic"
+import { createDeepSeek, type DeepSeekLanguageModelOptions } from "@ai-sdk/deepseek"
 import {LmsDiemDanhTool} from "../utils/ai/tools/lms";
 import {  
   getElibThongSoTool,
@@ -204,8 +204,7 @@ export const chisaAIV2_Chat = async (req: any) => {
         return status("Unauthorized", "Bạn không có quyền truy cập vào Chisa AI. Vui lòng đăng nhập lại.")
     }
 
-    const provider = createAnthropic({
-      baseURL: "https://api.deepseek.com/anthropic",
+    const provider = createDeepSeek({
       apiKey: process.env.DEESEEK_API_KEY || "",
     })
 
@@ -215,6 +214,12 @@ export const chisaAIV2_Chat = async (req: any) => {
         system: sysPrompt,
         messages: await convertToModelMessages(messages),
         tools: tool_v2_for_chisa,
+        providerOptions: {
+        deepseek: {
+          thinking: { type: 'disabled' },
+          reasoningEffort: 'low',
+        } satisfies DeepSeekLanguageModelOptions,
+      },
         stopWhen: stepCountIs(15),
     });
 
