@@ -2,7 +2,7 @@ import {getStudentScheduleTool, getNextClassTool, getExamScheduleTool} from "../
 import { weatherCurrentTool, weatherForecastTool,weatherForecastDayTool} from "../utils/ai/tools/weather";
 import {extractWebTool, searchWebTool} from "../utils/ai/tools/web";
 import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway, generateId, UIMessagePart} from "ai";
-
+import { createAnthropic } from "@ai-sdk/anthropic"
 import {LmsDiemDanhTool} from "../utils/ai/tools/lms";
 import {  
   getElibThongSoTool,
@@ -30,7 +30,7 @@ import {buildSystemPrompt} from "../utils/ai/system/prompt";
 
 const MODEL_NAME_MAPPING: Record<string, string> = {
   // "ChisaAI": "openai/gpt-oss-120b",
-  "ChisaAI": "deepseek/deepseek-v4-flash"
+  "ChisaAI": "deepseek-v4-flash"
 }
 
 const REVERSE_MODEL_MAPPING: Record<string, string> = Object.fromEntries(
@@ -67,7 +67,7 @@ export function getAvailableModels(): { safeName: string; modelId: string; isDef
   return Object.entries(MODEL_NAME_MAPPING).map(([safeName, modelId]) => ({
     safeName,
     modelId,
-    isDefault: modelId === "deepseek/deepseek-v4-flash", // Mark default model
+    isDefault: modelId === "deepseek-v4-flash", // Mark default model
   }));
 }
 
@@ -174,7 +174,7 @@ export const chisaAIV2_Chat = async (req: any) => {
     const selectedModel = req['model'] as string | undefined;
 
     // Only accept safe names, no direct model IDs allowed
-    let modelToUse = "deepseek/deepseek-v4-flash"; // Default
+    let modelToUse = "deepseek-v4-flash"; // Default
     if (selectedModel) {
       const mappedModel = MODEL_NAME_MAPPING[selectedModel];
       if (mappedModel) {
@@ -204,9 +204,14 @@ export const chisaAIV2_Chat = async (req: any) => {
         return status("Unauthorized", "Bạn không có quyền truy cập vào Chisa AI. Vui lòng đăng nhập lại.")
     }
 
+    const provider = createAnthropic({
+      baseURL: "https://api.deepseek.com/anthropic",
+      apiKey: process.env.DEESEEK_API_KEY || "",
+    })
+
 
     const stream = streamText({
-        model: modelToUse,
+        model: provider(modelToUse),
         system: sysPrompt,
         messages: await convertToModelMessages(messages),
         tools: tool_v2_for_chisa,
