@@ -29,7 +29,7 @@ import {buildSystemPrompt} from "../utils/ai/system/prompt";
 
 
 const MODEL_NAME_MAPPING: Record<string, string> = {
-  "ChisaAI": "alibaba/qwen-3-235b",
+  "ChisaAI": "openai/gpt-oss-120b",
   // "ChisaAI mini": "deepseek/deepseek-v4-flash"
 }
 
@@ -67,7 +67,7 @@ export function getAvailableModels(): { safeName: string; modelId: string; isDef
   return Object.entries(MODEL_NAME_MAPPING).map(([safeName, modelId]) => ({
     safeName,
     modelId,
-    isDefault: modelId === "alibaba/qwen-3-235b"
+    isDefault: modelId === "openai/gpt-oss-120b"
   }));
 }
 
@@ -174,7 +174,7 @@ export const chisaAIV2_Chat = async (req: any) => {
     const selectedModel = req['model'] as string | undefined;
 
     // Only accept safe names, no direct model IDs allowed
-    let modelToUse = "alibaba/qwen-3-235b"; // Default
+    let modelToUse = "openai/gpt-oss-120b"; // Default
     if (selectedModel) {
       const mappedModel = MODEL_NAME_MAPPING[selectedModel];
       if (mappedModel) {
