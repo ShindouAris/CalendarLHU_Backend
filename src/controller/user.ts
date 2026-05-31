@@ -61,14 +61,10 @@ export function stopNonceCleanup() {
 
 
 export const userApi = {
-    login: async (idSinhVien: string, password: string, idLoginDevice: string, cf_verify_token: string, requestip?: string): Promise<loginRes | any> => {
+    login: async (idSinhVien: string, password: string, idLoginDevice: string): Promise<loginRes | any> => {
         try {
             if (!idLoginDevice.startsWith('{')) {
                 return status("Bad Request" , "Invalid idLoginDevice")
-            }
-            const valid = await verfiyToken(cf_verify_token, requestip)
-            if (!valid) {
-                return status("Bad Request", "Invalid cf_verify_token")
             }
             const response = await fetch(
                 apiLogin, 

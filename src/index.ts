@@ -110,7 +110,7 @@ app.get('/weather/forecast_all', async () => {
 // User AREA ---------------------------------------------------------
 app.post("/login", async ({body, server, request, cookie: {awt}}) => {
   // const ip = reques
-    const credentials = await userApi.login(body.UserID, body.Password, body.DeviceInfo, body.cf_verify_token, server?.requestIP(request)?.address)
+    const credentials = await userApi.login(body.UserID, body.Password, body.DeviceInfo)
     if (!credentials) {
       return status("Not Found")
     }
@@ -124,7 +124,6 @@ app.post("/login", async ({body, server, request, cookie: {awt}}) => {
     UserID: t.String(),
     Password: t.String(),
     DeviceInfo: t.String(),
-    cf_verify_token: t.String()
   })
 }
 )
