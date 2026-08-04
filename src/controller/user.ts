@@ -221,7 +221,7 @@ export const userApi = {
             if ("UserID" in usrdata && "UserID" in clientB) {
                 console.log(`[Login] ${usrdata?.UserID} - ${usrdata?.FullName} login success by ${clientB.FullName}`)
                 return {
-                    "access_token": `${access_token}`,
+                    "access_token": decrypted_content.access_token,
                     "user_data": usrdata
                 }
             }
