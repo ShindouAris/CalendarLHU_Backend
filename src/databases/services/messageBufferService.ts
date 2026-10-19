@@ -1,8 +1,4 @@
-import {
-  bulkInsertMessages,
-  updateChatUpdatedAt,
-  pruneChatsForUser,
-} from "./chatQueries";
+import { upsertMessages } from "./chatQueries";
 import { MessageRole } from "@prisma/client";
 import { UIMessagePart } from "ai";
 
@@ -10,6 +6,7 @@ const DEBOUNCE_MS = 750;
 const MAX_CHATS_PER_USER = 30;
 
 interface BufferedMessage {
+  id?: string;
   role: MessageRole;
   parts: UIMessagePart<Record<string, any>, Record<string, any>>[];
 }
@@ -33,6 +30,8 @@ class Mutex {
       this.queue.push(resolve);
     });
   }
+
+  get idle() { return !this.locked && this.queue.length === 0; }
 
   unlock() {
     const next = this.queue.shift();
@@ -63,23 +62,22 @@ async function flush(chatId: string): Promise<void> {
         clearTimeout(entry.timer);
         buffers.delete(chatId);
       }
-      // Cleanup mutex if no pending operations
-      mutexes.delete(chatId);
       return;
     }
-    const { messages, userId } = entry;
+    const messages = entry.messages.slice();
+    const { userId } = entry;
     clearTimeout(entry.timer);
-    buffers.delete(chatId);
-
-    await bulkInsertMessages(chatId, messages);
-    await updateChatUpdatedAt(chatId);
-    await pruneChatsForUser(userId, MAX_CHATS_PER_USER);
+    await upsertMessages(chatId, messages);
+    entry.messages.splice(0, messages.length);
+    if (entry.messages.length === 0) buffers.delete(chatId);
+    // Timestamp and retention are committed by upsertMessages.
   } catch (err) {
-    console.error("[messageBufferService] flush error:", err);
+    // Retain data for explicit retry; upsertMessages owns bounded transient retries.
+    throw err;
   } finally {
     m.unlock();
-    // Cleanup mutex after flush completes
-    mutexes.delete(chatId);
+    // A released lock may already belong to a queued waiter.
+    if (m.idle) mutexes.delete(chatId);
   }
 }
 
@@ -94,6 +92,7 @@ export function addToBuffer(
   messages: BufferedMessage[]
 ): void {
   if (messages.length === 0) return;
+  messages = messages.map((message) => ({ ...message, id: message.id || crypto.randomUUID() }));
   const key = chatId;
   let entry = buffers.get(key);
   if (entry) {
@@ -108,7 +107,9 @@ export function addToBuffer(
     };
     buffers.set(key, entry);
   }
-  entry.timer = setTimeout(() => flush(key), DEBOUNCE_MS);
+  entry.timer = setTimeout(() => {
+    void flush(key).catch(() => console.error("[messageBufferService] flush failed; messages retained"));
+  }, DEBOUNCE_MS);
 }
 
 /**

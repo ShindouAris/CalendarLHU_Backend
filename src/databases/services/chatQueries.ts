@@ -147,6 +147,70 @@ export async function bulkInsertMessages(
 }
 
 /** Update only Chat.updatedAt (no rewrite, no messages). */
+
+/** Upsert messages by ID to guarantee idempotency. */
+export async function upsertMessages(
+  chatId: string,
+  messages: Array<{
+    id?: string;
+    role: MessageRole;
+    parts: UIMessagePart<Record<string, any>, Record<string, any>>[];
+  }>,
+  rewindId?: string
+) {
+  if (messages.length === 0) return [];
+  // Generate IDs once: a rolled-back transaction must replay the same writes.
+  const pending = messages.map((message) => ({ ...message, id: message.id || crypto.randomUUID() }));
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+    const { userId } = await tx.chat.findUniqueOrThrow({ where: { id: chatId }, select: { userId: true } });
+    // Owner row lock also serializes retention across different chats for this user.
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+    await tx.chat.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
+    const baseTime = new Date();
+    if (rewindId) {
+      const target = await tx.message.findFirst({ where: { id: rewindId, chatId, role: 'assistant' } });
+      if (!target) throw new Error('Invalid regeneration target');
+      await tx.message.deleteMany({ where: { chatId, OR: [
+        {createdAt: {gt: target.createdAt}}, {createdAt: target.createdAt, id: {gte: target.id}}
+      ] } });
+    }
+    const saved = [];
+    for (const [index, m] of pending.entries()) {
+      const msgId = m.id;
+      saved.push(await tx.message.upsert({
+        where: { id: msgId, chatId, role: m.role },
+        update: {
+          parts: m.parts as any,
+        },
+        create: {
+          id: msgId,
+          chatId,
+          role: m.role,
+          parts: m.parts as any,
+          createdAt: new Date(baseTime.getTime() + index),
+        },
+      }));
+    }
+    // Keep the chat being saved even when timestamps tie or clocks differ.
+    const stale = await tx.chat.findMany({
+      where: { userId, id: { not: chatId } },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      skip: 29,
+      select: { id: true },
+    });
+    if (stale.length) await tx.chat.deleteMany({ where: { userId, id: { in: stale.map((chat) => chat.id) } } });
+    return saved;
+      });
+    } catch (error) {
+      // P2034 guarantees transaction rollback; do not retry ambiguous connection failures.
+      if (attempt >= 2 || (error as { code?: string })?.code !== 'P2034') throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+    }
+  }
+}
+
 export async function updateChatUpdatedAt(chatId: string) {
   const result = await prisma.chat.update({
     where: { id: chatId },
@@ -180,7 +244,8 @@ export async function pruneChatsForUser(userId: string, keepN: number) {
 
 export interface ChatSummary {
   chatId: string;
-  chatUUID?: string;
+  chatUUID: string;
+  title?: string;
   createdAt: Date;
   updatedAt: Date;
   messageCount: number;
@@ -229,21 +294,43 @@ export async function listChatSummariesPaginated(
   const hasMore = docs.length > actualLimit;
   const page = hasMore ? docs.slice(0, actualLimit) : docs;
 
-  const counts = await Promise.all(
-    page.map((c) =>
-      prisma.message.count({
-        where: { chatId: c.id },
-      })
-    )
-  );
+  const [counts, firstMessages] = await Promise.all([
+    Promise.all(
+      page.map((c) =>
+        prisma.message.count({
+          where: { chatId: c.id },
+        })
+      )
+    ),
+    Promise.all(
+      page.map((c) =>
+        prisma.message.findFirst({
+          where: { chatId: c.id, role: 'user' },
+          orderBy: { createdAt: 'asc' },
+          select: { parts: true },
+        })
+      )
+    ),
+  ]);
 
-  const chats: ChatSummary[] = page.map((c, idx) => ({
-    chatId: c.id,
-    chatUUID: c.chatID,
-    createdAt: c.createdAt,
-    updatedAt: c.updatedAt,
-    messageCount: counts[idx] ?? 0,
-  }));
+  const chats: ChatSummary[] = page.map((c, idx) => {
+    let title: string | undefined = undefined;
+    const fMsg = firstMessages[idx];
+    if (fMsg && Array.isArray(fMsg.parts)) {
+      const textPart = (fMsg.parts as any[]).find((p: any) => p?.type === 'text');
+      if (textPart?.text) {
+        title = textPart.text.replace(/\s+/g, ' ').trim().slice(0, 40);
+      }
+    }
+    return {
+      chatId: c.id,
+      chatUUID: c.chatID,
+      title: title || c.chatID.slice(0, 12),
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      messageCount: counts[idx] ?? 0,
+    };
+  });
 
   const next = hasMore
     ? ({ updatedAt: page[page.length - 1].updatedAt, id: page[page.length - 1].id })

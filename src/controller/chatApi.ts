@@ -1,10 +1,11 @@
 import { status } from "elysia";
-import { userApi } from "./user";
+import { verifySession } from "../utils/ai/session";
 import {
   getChatForUser,
   getChatForUserByUUID,
   loadChatHistory,
   listChatSummariesPaginated,
+  deleteChat,
   type ChatSummary,
 } from "../databases/services/chatQueries";
 
@@ -45,9 +46,7 @@ function decodeChatListToken(
 }
 
 async function resolveUserFromToken(accessToken: string): Promise<string | null> {
-  const user = await userApi.userinfo(accessToken);
-  if (!user || typeof user !== "object" || !("UserID" in user)) return null;
-  return (user as { UserID: string }).UserID;
+  try { return verifySession(accessToken).sub; } catch { return null; }
 }
 
 /** List chats: dùng accessToken, lấy UserID từ userinfo rồi list. */
@@ -130,4 +129,26 @@ export async function loadChatHistoryHandler(
     })).reverse(),
     next_token: next_token_out,
   };
+}
+
+
+/** Xóa đoạn chat có xác thực quyền sở hữu (ownership check). */
+export async function deleteChatHandler(
+  chatId: string,
+  body: { accessToken: string }
+) {
+  const { accessToken } = body;
+  if (!accessToken) return status(401, { error: "accessToken required" });
+
+  const userId = await resolveUserFromToken(accessToken);
+  if (!userId) return status(401, { error: "Invalid or expired token" });
+
+  let chat = await getChatForUserByUUID(chatId, userId);
+  if (!chat) {
+    chat = await getChatForUser(chatId, userId);
+  }
+  if (!chat) return status(404, { error: "Chat not found or access denied" });
+
+  await deleteChat(chat.id);
+  return { success: true, message: "Đã xóa đoạn chat thành công" };
 }

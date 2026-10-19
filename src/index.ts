@@ -6,10 +6,13 @@ import { cors } from "@elysiajs/cors";
 import { logger } from "@tqman/nice-logger"
 import { MarkStudent } from "./controller/mark";
 import { LMSAPI } from "./controller/lms";
+import { MAX_CHAT_BYTES, chatLimits, sessionLimits, schoolTokenKey, schoolProfile } from "./utils/ai/guards";
+import { signSession, verifySession, sessionResponse } from "./utils/ai/session";
+import { userApi as aiSchoolUser } from "./utils/ai/tools/user";
 import { CHATAPI } from "./controller/chat";
 import { automationTool } from "./controller/autoKhaoSat";
 import { chisaAIV2_Chat, getToolsForFrontend, getAvailableModels } from "./controller/ai";
-import { listChats, loadChatHistoryHandler } from "./controller/chatApi";
+import { listChats, loadChatHistoryHandler, deleteChatHandler } from "./controller/chatApi";
 import { connectDB, closeDB, prisma } from "./databases";
 import { stopNonceCleanup } from "./controller/user";
 import { setupMemoryEndpoint } from "./utils/memoryMonitor";
@@ -238,18 +241,73 @@ app.post("/qa/fetch_pending", async ({body}) => {
 
 // ChisaAI Area -------------------------------------------
 
+app.post("/chisaAI/v3/session", async ({ body }) => {
+  if (Buffer.byteLength(process.env.AI_SESSION_SECRET || '') < 32) return status(503, { error: "AI session signing unavailable" });
+  const release = sessionLimits.acquire(schoolTokenKey(body.accessToken));
+  if (!release) return status(429, { error: "Too many session requests" });
+  try {
+    const user = await aiSchoolUser.getUserInfo(body.accessToken);
+    const profile = schoolProfile(user);
+    await prisma.user.upsert({ where: { userID: profile.userID }, update: profile, create: profile });
+    return sessionResponse(signSession(profile.userID, body.accessToken));
+  } catch (error) {
+    return error instanceof Error && error.message === "UNAUTHORIZED"
+      ? status(401, { error: "Invalid school session" })
+      : status(503, { error: "Session service unavailable" });
+  } finally { release(); }
+}, { body: t.Object({ accessToken: t.String({ minLength: 1, maxLength: 16384 }) }) });
+app.post("/chisaAI/v3/session/refresh", async ({ body }) => {
+  if (Buffer.byteLength(process.env.AI_SESSION_SECRET || '') < 32) return status(503, { error: "AI session signing unavailable" });
+  let previous;
+  try { previous = verifySession(body.token); }
+  catch { return status(401, { error: "Invalid or expired session" }); }
+  const release = sessionLimits.acquire(schoolTokenKey(previous.school));
+  if (!release) return status(429, { error: "Too many session requests" });
+  try {
+    const user = await aiSchoolUser.getUserInfo(previous.school);
+    if (String(user.UserID) !== previous.sub) return status(401);
+    const profile = schoolProfile(user);
+    await prisma.user.upsert({ where: { userID: profile.userID }, update: profile, create: profile });
+    return sessionResponse(signSession(previous.sub, previous.school));
+  } catch (error) {
+    return error instanceof Error && error.message === "UNAUTHORIZED"
+      ? status(401, { error: "Invalid school session" })
+      : status(503, { error: "Session service unavailable" });
+  } finally { release(); }
+}, { body: t.Object({ token: t.String({ maxLength: 30000 }) }) });
+
 app.get("chisaAI/v2/tools", () => ({ tools: getToolsForFrontend() }));
 
 app.get("chisaAI/v2/models", () => ({ models: getAvailableModels() }));
 
 app.post("chisaAI/v2/chat", async ({ request }) => {
-  const req = await request.json();
+  let req;
+  try {
+    const reader = request.body?.getReader();
+    if (!reader) return status(400);
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_CHAT_BYTES) { await reader.cancel(); return status(413); }
+      chunks.push(value);
+    }
+    req = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (!req || typeof req !== 'object' || Array.isArray(req)) return status(400);
+  } catch { return status(400); }
+  req.signal = request.signal;
   return await chisaAIV2_Chat(req);
 }, { parse: "none" });
 
 app.post("/chisaAI/v3/user/check", async ({ body }) => {
+  if (Buffer.byteLength(process.env.AI_SESSION_SECRET || '') < 32) return status(503, { error: "AI session signing unavailable" });
+  let claims;
+  try { claims = verifySession(body.accessToken); }
+  catch { return status(401, { error: "Invalid or expired AI session" }); }
   try {
-    const userInfo = await userApi.userinfo(body.accessToken);
+    const userInfo: any = { UserID: claims.sub };
     if (!userInfo || typeof userInfo !== "object" || !("UserID" in userInfo)) {
       return status(401, { error: "Invalid or expired access token" });
     }
@@ -269,8 +327,7 @@ app.post("/chisaAI/v3/user/check", async ({ body }) => {
       exists: true
     };
   } catch (error) {
-    console.error("Error checking user:", error);
-    return status(500, { error: "Internal server error" });
+    return status(503, { error: "User service unavailable" });
   }
 }, {
   body: t.Object({
@@ -279,9 +336,12 @@ app.post("/chisaAI/v3/user/check", async ({ body }) => {
 })
 
 app.post("/chisaAI/v3/user/create", async ({ body }) => {
+  if (Buffer.byteLength(process.env.AI_SESSION_SECRET || '') < 32) return status(503, { error: "AI session signing unavailable" });
+  let claims;
+  try { claims = verifySession(body.accessToken); }
+  catch { return status(401, { error: "Invalid or expired AI session" }); }
   try {
-
-    const userInfo = await userApi.userinfo(body.accessToken);
+    const userInfo: any = { UserID: claims.sub };
     if (!userInfo || typeof userInfo !== "object" || !("UserID" in userInfo)) {
       return status(401, { error: "Invalid or expired access token" });
     }
@@ -291,20 +351,11 @@ app.post("/chisaAI/v3/user/create", async ({ body }) => {
     });
     if (exists) return { message: "User already exists" };
     
-    await prisma.user.create({
-      data: {
-        userID: (userInfo as { UserID: string }).UserID,
-        fullName: (userInfo as { FullName: string }).FullName || "Unknown",
-        class: (userInfo as { Class: string }).Class || "",
-        departmentName: (userInfo as { DepartmentName: string }).DepartmentName || ""
-      }
-    })
+    return status(409, { error: "Exchange school session again to restore profile" });
 
-    return { message: "User created successfully" };
 
   } catch (error) {
-    console.error("Error creating user:", error);
-    return status(500);
+    return status(503, { error: "User service unavailable" });
   }
 }, {
   body: t.Object({
@@ -321,6 +372,15 @@ app.post("/chisaAI/v2/list", async ({ body }) => {
     limit: t.Optional(t.Number()),
   }),
 })
+
+
+app.delete("/chisaAI/v2/:chatId", async ({ params, body }) => {
+  return deleteChatHandler(params.chatId, body as { accessToken: string });
+}, {
+  body: t.Object({
+    accessToken: t.String(),
+  }),
+});
 
 app.post("/chisaAI/v2/:chatId/history", async ({ params, body }) => {
   return loadChatHistoryHandler(params.chatId, body as { accessToken: string; next_token?: string; limit?: number });
@@ -359,11 +419,11 @@ async function gracefulShutdown(signal: string) {
     // Stop nonce cleanup timer
     stopNonceCleanup();
     
-    // Close PostgreSQL connection
-    await closeDB();
-    
-    // Stop Elysia server
+    // Stop accepting requests before disconnecting persistence.
+    const draining = Promise.all([chatLimits.stopAndDrain(), sessionLimits.stopAndDrain()]);
     await app.stop();
+    await draining;
+    await closeDB();
     console.log("✅ Server stopped");
     
     console.log("👋 Graceful shutdown completed");

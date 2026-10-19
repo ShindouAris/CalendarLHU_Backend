@@ -1,7 +1,7 @@
 import {getStudentScheduleTool, getNextClassTool, getExamScheduleTool} from "../utils/ai/tools/calen";
 import { weatherCurrentTool, weatherForecastTool,weatherForecastDayTool} from "../utils/ai/tools/weather";
 import {extractWebTool, searchWebTool} from "../utils/ai/tools/web";
-import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway, generateId, UIMessagePart} from "ai";
+import {stepCountIs, streamText, ToolSet, UIMessage, convertToModelMessages, gateway, generateId, UIMessagePart, consumeStream} from "ai";
 import { createDeepSeek, type DeepSeekLanguageModelOptions } from "@ai-sdk/deepseek"
 import {LmsDiemDanhTool} from "../utils/ai/tools/lms";
 import {  
@@ -13,6 +13,10 @@ import {
   getElibThietBiForRegTool
 } from "../utils/ai/tools/elib";
 import {status} from "elysia";
+import { encryptLoginData } from "../utils/encryptor";
+import { persistenceResponse } from "../utils/ai/persistenceStream";
+import { validateChatInput, chatLimits } from "../utils/ai/guards";
+import { verifySession } from "../utils/ai/session";
 import {UserResponse} from "../types/user";
 import {userApi} from "../utils/ai/tools/user";
 import {LRUCache} from "../utils/lruCache";
@@ -22,6 +26,7 @@ import {
   getChatForUser,
   getChatForUserByUUID,
   createChatForUser,
+  upsertMessages,
 } from "../databases/services/chatQueries";
 import { addToBuffer } from "../databases/services/messageBufferService";
 import { MessageRole } from "@prisma/client";
@@ -166,11 +171,33 @@ const usercacheBuffer = new UserCache();
 
 export const chisaAIV2_Chat = async (req: any) => {
 
-    if (!(await checkAvailability())) {
-        return status('Payment Required', "Chisa AI hết tiền vận hành rồi T-T")
+    if (!validateChatInput(req)) return status(400, { error: 'Invalid or oversized chat input' });
+    let session;
+    try { session = verifySession(req.access_token || req.accessToken); }
+    catch { return status(401, { error: "Invalid or expired AI session" }); }
+    req.user_id = session.sub;
+    const access_token = session.school;
+    if (typeof req.id !== 'string' || !req.id || req.id.length > 128 || !Array.isArray(req.messages) || req.messages.length > 200) return status(400);
+    const release = chatLimits.acquire(session.sub);
+    if (!release) return status(429, { error: 'Too many AI requests' });
+    let streaming = false;
+    const abort = () => release();
+    req.signal?.addEventListener('abort', abort, { once: true });
+    try {
+    if (req.signal?.aborted) return status(400);
+    let ownedChat = await getChatForUserByUUID(req.id, session.sub) || await getChatForUser(req.id, session.sub);
+    if (!ownedChat) {
+      const collision = await prisma.chat.findFirst({ where: { OR: [{id:req.id},{chatID:req.id}] } });
+      if (collision) return status(404);
+      ownedChat = await createChatForUser(session.sub, req.id);
+    }
+    if (!ownedChat) return status(404);
+    if (req.trigger === 'regenerate-message') {
+      if (typeof req.messageId !== 'string') return status(400);
+      const target = await prisma.message.findFirst({where: {id:req.messageId, chatId:ownedChat.id, role:'assistant'}});
+      if (!target) return status(404);
     }
 
-    const access_token = req['access_token']
     const selectedModel = req['model'] as string | undefined;
 
     // Only accept safe names, no direct model IDs allowed
@@ -186,19 +213,16 @@ export const chisaAIV2_Chat = async (req: any) => {
     }
 
     let sysPrompt;
-    const {id, messages }: {id: string, messages: UIMessage[] } = req;
+    const {id, messages, trigger, messageId }: {id: string; messages: UIMessage[]; trigger?: "submit-message" | "regenerate-message"; messageId?: string} = req;
     console.log("chisaAIV2_Chat called for user ", req['user_id'], " with chat id ", id)
 
     try {
         const precachedUser = await usercacheBuffer.getUserData(req['user_id'])
         if (precachedUser) {
-            sysPrompt = buildSystemPrompt(precachedUser, access_token)
+            sysPrompt = buildSystemPrompt(precachedUser, "")
             console.log("Cache hit for user ", precachedUser.UserID)
         } else {
-            const userData: UserResponse | null = await userApi.getUserInfo(access_token)
-            console.log("Cache miss for user ", req['user_id'])
-            sysPrompt = buildSystemPrompt(userData, access_token)
-            await usercacheBuffer.setUserData(userData.UserID, userData);
+            return status(404, { error: "Create AI user first" });
         }
     } catch (error) {
         return status("Unauthorized", "Bạn không có quyền truy cập vào Chisa AI. Vui lòng đăng nhập lại.")
@@ -213,7 +237,17 @@ export const chisaAIV2_Chat = async (req: any) => {
         model: provider(modelToUse),
         system: sysPrompt,
         messages: await convertToModelMessages(messages),
-        tools: tool_v2_for_chisa,
+        tools: Object.fromEntries(Object.entries(tool_v2_for_chisa).map(([name, definition]) => {
+          const original = definition as any;
+          const shape = original.inputSchema?.shape;
+          const field = shape?.accessToken ? 'accessToken' : shape?.access_token ? 'access_token' : null;
+          if (!field) return [name, definition];
+          return [name, { ...original, inputSchema: original.inputSchema.omit({ [field]: true }),
+            execute: (args: any, options: any) => original.execute({ ...args, [field]: encryptLoginData(access_token) }, options) }];
+        })),
+        abortSignal: req.signal,
+        onError: () => release(),
+        onAbort: () => release(),
         providerOptions: {
         deepseek: {
           thinking: { type: 'disabled' },
@@ -223,86 +257,88 @@ export const chisaAIV2_Chat = async (req: any) => {
         stopWhen: stepCountIs(15),
     });
 
-    return stream.toUIMessageStreamResponse({
+    const response = persistenceResponse(writer => stream.toUIMessageStream({
       originalMessages: messages,
       generateMessageId: () => crypto.randomUUID(),
+
       onFinish: async (msg) => {
+
         const userId = req['user_id'] as string | undefined;
         if (!userId) {
-          console.log('[onFinish] userId not found in req:', req);
+          console.log('[onFinish] Missing identity');
           return;
         }
 
         try {
           const allMessages = msg.messages;
-          console.log('[onFinish] allMessages:', allMessages);
+          console.log('[onFinish] allMessages count:', allMessages.length, 'isAborted:', (msg as any).isAborted);
 
-          const messagesToSave: Array<{
-            role: MessageRole;
-            parts: UIMessagePart<Record<string, any>, Record<string, any>>[];
-          }> = [];
-
-          let lastAssistantParts: UIMessagePart<Record<string, any>, Record<string, any>>[] | null = null;
-          let lastUserParts: UIMessagePart<Record<string, any>, Record<string, any>>[] | null = null;
+          let lastAssistant: any = null;
+          let lastUser: any = null;
 
           for (let i = allMessages.length - 1; i >= 0; i--) {
             const m = allMessages[i] as any;
 
-            if (!lastAssistantParts && m?.role === 'assistant' && Array.isArray(m.parts)) {
-              lastAssistantParts = m.parts;
+            if (!lastAssistant && m?.role === 'assistant' && Array.isArray(m.parts)) {
+              lastAssistant = m;
               continue;
             }
-            if (!lastUserParts && m?.role === 'user' && Array.isArray(m.parts)) {
-              lastUserParts = m.parts;
+            if (!lastUser && m?.role === 'user' && Array.isArray(m.parts)) {
+              lastUser = m;
               continue;
             }
 
-            if (lastAssistantParts && lastUserParts) break;
+            if (lastAssistant && lastUser) break;
           }
 
-          if (lastUserParts) messagesToSave.push({ role: 'user', parts: lastUserParts });
-          if (lastAssistantParts) messagesToSave.push({ role: 'assistant', parts: lastAssistantParts });
+          const chat = ownedChat;
 
-          console.log('[onFinish] messagesToSave:', messagesToSave);
+          const actualTrigger = trigger;
+          const actualMessageId = messageId;
 
-          if (messagesToSave.length === 0) {
-            console.log('[onFinish] No messages to save. Exit.');
-            return;
+          const messagesToSave: Array<{
+            id?: string;
+            role: MessageRole;
+            parts: UIMessagePart<Record<string, any>, Record<string, any>>[];
+          }> = [];
+
+          // Only insert user message if NOT a regenerate trigger
+          if (actualTrigger !== 'regenerate-message' && lastUser) {
+            messagesToSave.push({
+              id: lastUser.id,
+              role: 'user',
+              parts: lastUser.parts,
+            });
           }
 
-          let chat: { id: string; userId: string } | null = null;
-          const chatId = req['id'] as string | undefined;
-          if (chatId) {
-            // Try UUID format first (chatID field)
-            console.log('[onFinish] Try getChatForUserByUUID with chatUUID:', chatId, 'userId:', userId);
-            chat = await getChatForUserByUUID(chatId, userId);
-            
-            if (!chat) {
-              // Try as primary key id
-              console.log('[onFinish] Try getChatForUser with chatId:', chatId, 'userId:', userId);
-              chat = await getChatForUser(chatId, userId);
-            }
+          if (lastAssistant) {
+            messagesToSave.push({
+              id: lastAssistant.id,
+              role: 'assistant',
+              parts: lastAssistant.parts,
+            });
           }
-          if (!chat) {
-            console.log('[onFinish] No chat found by chatId, try createChatForUser with userId:', userId, 'chatId:', chatId);
-            chat = await createChatForUser(userId, chatId);
-          }
-          if (!chat) {
-            console.log('[onFinish] No chat created, try getOrCreateChatForUser with userId:', userId);
-            chat = await getOrCreateChatForUser(userId);
-          }
-          if (chat?.id && chat?.userId) {
-            console.log('[onFinish] Adding to buffer chatId:', chat.id, 'userId:', chat.userId, 'messagesToSave:', messagesToSave);
-            addToBuffer(chat.id, chat.userId, messagesToSave);
-          } else {
-            console.log('[onFinish] Unable to resolve chat for saving history. chat:', chat);
+
+          // Message contents can contain private student data; do not log them.
+
+          if (messagesToSave.length > 0) {
+            await upsertMessages(chat.id, messagesToSave, actualTrigger === "regenerate-message" ? actualMessageId : undefined);
           }
         } catch (err) {
           console.error("Failed to save chat history in toUIMessageStreamResponse", err);
+          writer.write({ type: "data-persistence-error", data: { message: "Không thể lưu lịch sử trò chuyện" }, transient: true });
+        } finally {
+          release();
+          req.signal?.removeEventListener('abort', abort);
         }
       },
-    });
-}
+    }));
+    streaming = true;
+    return response;
+    } finally {
+      if (!streaming) { release(); req.signal?.removeEventListener('abort', abort); }
+    }
+  };
 
 export const checkAvailability = async () => {
     const credit = await gateway.getCredits()

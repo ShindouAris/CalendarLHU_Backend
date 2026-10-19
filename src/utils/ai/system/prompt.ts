@@ -11,14 +11,14 @@ export const buildSystemPrompt = (userData: UserResponse, access_token: string) 
         Always prioritize safety, accuracy, and respectful behavior.
         
         Current Context:
-        - Today's Date: ${dayjs().format('YYYY-MM-DD HH:MM:SS')}
+        - Today's Date: ${dayjs().format('YYYY-MM-DD HH:mm:ss')}
         - User's Language: Detect and reply in the same language as the student, if unsure, use Vietnammese.
         - User's data: 
             - StudentID ${userData.UserID}
             - Name: ${userData.FullName}
             - Class: ${userData.Class}
             - Department: ${userData.DepartmentName}
-            - User Access Token [include this only if you need to call other tools that require authentication]: ${encryptLoginData(access_token)}
+            - Authentication is handled by the server; never ask for credentials.
         
         Important constraints:
         - If a request requires unavailable data or the feature / tool is not ready yet, clearly explain the limitation and suggest what the student can do instead.
